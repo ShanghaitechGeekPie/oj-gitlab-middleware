@@ -6,6 +6,6 @@ EXPOSE 8000
 
 COPY . /app/
 WORKDIR /app
-RUN cargo build --releases
+RUN cargo build --release
 
-CMD cargo run --releases
+CMD cargo run --release
