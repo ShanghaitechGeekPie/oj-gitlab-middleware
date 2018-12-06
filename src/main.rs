@@ -193,7 +193,7 @@ fn main() {
     }
 
     if security == 0 {
-        println!("Alert! You have no security measures enabled! Either supply gitlab_token or gitlab_domain, or set mute_security to true if you hosts on loopback interface.")
+        panic!("Alert! You have no security measures enabled! Either supply gitlab_token or gitlab_domain, or set mute_security to true if you hosts on loopback interface.")
     }
 
     rocket.launch();
