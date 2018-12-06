@@ -1,9 +1,12 @@
 [development]
 gitlab_token = "test"
+log = "critical"
 databases = {redis = {url = "redis://:ef797edb92b6d38a36595102a185edf1e91c69f7@192.168.191.5/0"}}
 
 [staging]
+address = "0.0.0.0"
 mute_security = false
 databases = {redis = {url = "redis://:ef797edb92b6d38a36595102a185edf1e91c69f7@192.168.191.5/1"}}
 
-# Production? Better add these configurations through environment variables.
+[production]
+address = "0.0.0.0"
