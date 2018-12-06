@@ -34,7 +34,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
 
-use rocket_contrib::databases::redis::{transaction, Commands, PipelineCommands, FromRedisValue};
+use rocket_contrib::databases::redis::Commands;
 
 use rocket::{State, Request, Data, Outcome};
 use rocket::data::{self, FromDataSimple};
@@ -75,28 +75,30 @@ macro_rules! gitlab_event {
 
             fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
                 if let Outcome::Success(s) = request.guard::<State<Domain>>() {
-                    let domains = s.0.to_vec();
-                    if let Some(ip) = request.client_ip() {
-                        if !domains.iter().any(|d| is_ip_same(d, &ip)) {
+                    if let Some(ref domains ) = s.0 {
+                        if let Some(ip) = request.client_ip() {
+                            if !domains.iter().any(|d| is_ip_same(d, &ip)) {
+                                return Outcome::Failure((Status::Unauthorized, "IP not whitelisted"))
+                            }
+                        } else {
                             return Outcome::Failure((Status::Unauthorized, "IP not whitelisted"))
                         }
-                    } else {
-                        return Outcome::Failure((Status::Unauthorized, "IP not whitelisted"))
                     }
                 }
                 if let Outcome::Success(s) = request.guard::<State<Token>>() {
-                    let token = &s.0;
-                    if !request.headers().get("x-gitlab-token").any(|t| t==token) {
-                        return Outcome::Failure((Status::Unauthorized, "Require valid token"))
+                    if let Some(ref token )= s.0 {
+                        if !request.headers().get("x-gitlab-token").any(|t| t==token) {
+                            return Outcome::Failure((Status::Unauthorized, "Require valid token"))
+                        }
                     }
                 }
                 let name: Vec<_> = request.headers().get("x-gitlab-event").collect();
                 if name.len() != 1 {
-                    println!(stringify!(No gitlab $name));
+                    //println!(stringify!(No gitlab $name));
                     return Outcome::Failure((Status::BadRequest, stringify!(No gitlab $name)))
                 }
                 if name[0] != $name {
-                    println!(stringify!(Not gitlab $name));
+                    //println!(stringify!(Not gitlab $name));
                     return Outcome::Failure((Status::BadRequest, stringify!(Not gitlab $name)))
                 }
                 return Outcome::Success($clz());
@@ -135,25 +137,25 @@ fn current_time_millis() -> u64 {
 }
 
 #[post("/hooks/<course>/<assignment>", data = "<message>")]
-fn handle(course: u32, assignment: u32, redis: QueueRedis, message: Upstream, event: Push) -> Status {
+fn handle(course: u32, assignment: u32, redis: QueueRedis, message: Upstream, _event: Push) -> Status {
     if let Err(_) = redis.zadd::<String, u64, &str, u8>(format!("{}:{}", course, assignment), &message.0, current_time_millis()) {
         return Status::InternalServerError;
     };
     return Status::Ok;
 }
 
-struct Token(String);
+struct Token(Option<String>);
 
-struct Domain(Vec<IpAddr>);
+struct Domain(Option<Vec<IpAddr>>);
 
 fn is_ip_same(lhs: &IpAddr, rhs: &IpAddr) -> bool {
     match lhs {
         IpAddr::V4(lhs4) => match rhs {
             IpAddr::V4(rhs4) => lhs4.octets() == rhs4.octets(),
-            IpAddr::V6(rhs6) => false
+            IpAddr::V6(_) => false
         }
         IpAddr::V6(lhs6) => match rhs {
-            IpAddr::V4(rhs4) => false,
+            IpAddr::V4(_) => false,
             IpAddr::V6(rhs6) => lhs6.octets() == rhs6.octets()
         }
     }
@@ -171,8 +173,10 @@ fn main() {
     // Add token, if present
     let token = rocket.config().get_string("gitlab_token").unwrap_or(String::new());
     if !token.is_empty() {
-        rocket = rocket.manage(Token(token));
+        rocket = rocket.manage(Token(Some(token)));
         security += 1;
+    } else {
+        rocket = rocket.manage(Token(None));
     }
 
     // Add IP whitelist, if present
@@ -182,8 +186,10 @@ fn main() {
         })
         .unwrap_or(Vec::new());
     if !domains.is_empty() {
-        rocket = rocket.manage(Domain(domains));
+        rocket = rocket.manage(Domain(Some(domains)));
         security += 1;
+    } else {
+        rocket = rocket.manage(Domain(None));
     }
 
     if security == 0 {
