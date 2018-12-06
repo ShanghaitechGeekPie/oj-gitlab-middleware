@@ -9,6 +9,7 @@ EXPOSE 8000
 ADD Cargo.toml /app/
 ADD Cargo.lock /app/
 RUN cd /app && \
+    mkdir src && \
     touch src/lib.rs && \
     cargo build --release --lib
 
