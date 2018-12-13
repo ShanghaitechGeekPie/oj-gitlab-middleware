@@ -23,7 +23,11 @@ This service is expected to be built and deployed with docker.
 
 ## Configuring
 
-Supply at least one of these environment variables or face a panic!
+This is a Rocket application, so visit its [document](https://rocket.rs/v0.4/guide/configuration/#environment-variables)
+to know how to configure via environment variables.
+
+In addition, supply at least one of these Rocket configuration element or face a panic! 
+If you however set environment variable `mute_security=true`, it won't work, as you are supposed to set `ROCKET_MUTE_SECURITY=true`. 
 
 token name|description
 ---|---

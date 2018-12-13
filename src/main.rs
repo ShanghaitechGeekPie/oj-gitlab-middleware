@@ -21,8 +21,6 @@
 extern crate lazy_static;
 extern crate regex;
 
-extern crate redis;
-
 #[macro_use]
 extern crate rocket;
 #[macro_use]
@@ -30,12 +28,13 @@ extern crate rocket_contrib;
 
 use std::io::Read;
 use std::net::{IpAddr, ToSocketAddrs};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
 
-use rocket_contrib::databases::redis::Commands;
+use rocket_contrib::databases::mysql;
 
+
+use rocket::fairing::AdHoc;
 use rocket::{State, Request, Data, Outcome};
 use rocket::data::{self, FromDataSimple};
 use rocket::http::{Status, ContentType};
@@ -74,21 +73,22 @@ macro_rules! gitlab_event {
             type Error = &'r str;
 
             fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
+                // Rocket's implementation of guard isn't quite friendly...
                 if let Outcome::Success(s) = request.guard::<State<Domain>>() {
                     if let Some(ref domains ) = s.0 {
                         if let Some(ip) = request.client_ip() {
                             if !domains.iter().any(|d| is_ip_same(d, &ip)) {
-                                return Outcome::Failure((Status::Unauthorized, "IP not whitelisted"))
+                                return Outcome::Failure((Status::Forbidden, "IP not whitelisted"))
                             }
                         } else {
-                            return Outcome::Failure((Status::Unauthorized, "IP not whitelisted"))
+                            return Outcome::Failure((Status::Forbidden, "IP not whitelisted"))
                         }
                     }
                 }
                 if let Outcome::Success(s) = request.guard::<State<Token>>() {
                     if let Some(ref token )= s.0 {
                         if !request.headers().get("x-gitlab-token").any(|t| t==token) {
-                            return Outcome::Failure((Status::Unauthorized, "Require valid token"))
+                            return Outcome::Failure((Status::Forbidden, "Require valid token"))
                         }
                     }
                 }
@@ -128,17 +128,14 @@ macro_rules! gitlab_event {
 //}
 gitlab_event!(Push, "Push Hook");
 
-#[database("redis")]
-struct QueueRedis(redis::Connection);
-
-fn current_time_millis() -> u64 {
-    let d = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time travel");
-    d.as_secs() * 1000 + d.subsec_millis() as u64
-}
+#[database("mysql")]
+struct DBAccess(mysql::Conn);
 
 #[post("/hooks/<course>/<assignment>", data = "<message>")]
-fn handle(course: u32, assignment: u32, redis: QueueRedis, message: Upstream, _event: Push) -> Status {
-    if let Err(_) = redis.zadd::<String, u64, &str, u8>(format!("{}:{}", course, assignment), &message.0, current_time_millis()) {
+fn handle(course: u32, assignment: u32, db: DBAccess, message: Upstream, _event: Push) -> Status {
+    let mut conn = db.0;
+    if conn.prep_exec(r#"INSERT INTO pending_assignment VALUES(?, NOW(), ?, ?) ON DUPLICATE KEY UPDATE timestamp=NOW()"#,
+                      (message.0, course, assignment)).is_err() {
         return Status::InternalServerError;
     };
     return Status::Ok;
@@ -161,40 +158,42 @@ fn is_ip_same(lhs: &IpAddr, rhs: &IpAddr) -> bool {
     }
 }
 
+
 fn main() {
-    let mut rocket = rocket::ignite()
-        .attach(QueueRedis::fairing())
-        .mount("/", routes![handle]);
+    rocket::ignite()
+        .attach(DBAccess::fairing())
+        .attach(AdHoc::on_attach("SecurityConfigRetriever", |rocket| {
+            let mut security: u8 = 0;
 
-    let mut security: u8 = 0;
+            if rocket.config().get_bool("mute_security").unwrap_or(false) { security += 1; }
 
-    if rocket.config().get_bool("mute_security").unwrap_or(false) { security += 1; }
+            // Add token, if present
+            let token = rocket.config().get_string("gitlab_token").unwrap_or(String::new());
+            if !token.is_empty() {
+                rocket.manage(Token(Some(token)));
+                security += 1;
+            } else {
+                rocket.manage(Token(None));
+            }
 
-    // Add token, if present
-    let token = rocket.config().get_string("gitlab_token").unwrap_or(String::new());
-    if !token.is_empty() {
-        rocket = rocket.manage(Token(Some(token)));
-        security += 1;
-    } else {
-        rocket = rocket.manage(Token(None));
-    }
+            // Add IP whitelist, if present
+            let domains = rocket.config().get_string("gitlab_domain")
+                .map_or_else(|_| Ok(Vec::new()), |dn| {
+                    dn.to_socket_addrs().map(|addrs| addrs.map(|sa| sa.ip()).collect())
+                })
+                .unwrap_or(Vec::new());
+            if !domains.is_empty() {
+                rocket.manage(Domain(Some(domains)));
+                security += 1;
+            } else {
+                rocket.manage(Domain(None));
+            }
 
-    // Add IP whitelist, if present
-    let domains = rocket.config().get_string("gitlab_domain")
-        .map_or_else(|_| Ok(Vec::new()), |dn| {
-            dn.to_socket_addrs().map(|addrs| addrs.map(|sa| sa.ip()).collect())
-        })
-        .unwrap_or(Vec::new());
-    if !domains.is_empty() {
-        rocket = rocket.manage(Domain(Some(domains)));
-        security += 1;
-    } else {
-        rocket = rocket.manage(Domain(None));
-    }
-
-    if security == 0 {
-        panic!("Alert! You have no security measures enabled! Either supply gitlab_token or gitlab_domain, or set mute_security to true if you hosts on loopback interface.")
-    }
-
-    rocket.launch();
+            if security == 0 {
+                panic!("Alert! You have no security measures enabled! Either supply gitlab_token or gitlab_domain, or set mute_security to true if you host on loopback interface.")
+            }
+            Ok(rocket)
+        }))
+        .mount("/", routes![handle])
+        .launch();
 }
