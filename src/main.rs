@@ -15,7 +15,7 @@
  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#![feature(proc_macro_hygiene, decl_macro, result_map_or_else)]
+#![feature(proc_macro_hygiene, decl_macro, result_map_or_else, ip)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -162,18 +162,18 @@ fn is_ip_same(lhs: &IpAddr, rhs: &IpAddr) -> bool {
 fn main() {
     rocket::ignite()
         .attach(DBAccess::fairing())
-        .attach(AdHoc::on_attach("SecurityConfigRetriever", |rocket| {
+        .attach(AdHoc::on_attach("SecurityConfigRetriever", |r| {
             let mut security: u8 = 0;
-
+            let mut rocket = r;
             if rocket.config().get_bool("mute_security").unwrap_or(false) { security += 1; }
 
             // Add token, if present
             let token = rocket.config().get_string("gitlab_token").unwrap_or(String::new());
             if !token.is_empty() {
-                rocket.manage(Token(Some(token)));
+                rocket = rocket.manage(Token(Some(token)));
                 security += 1;
             } else {
-                rocket.manage(Token(None));
+                rocket = rocket.manage(Token(None));
             }
 
             // Add IP whitelist, if present
@@ -183,10 +183,10 @@ fn main() {
                 })
                 .unwrap_or(Vec::new());
             if !domains.is_empty() {
-                rocket.manage(Domain(Some(domains)));
+                rocket = rocket.manage(Domain(Some(domains)));
                 security += 1;
             } else {
-                rocket.manage(Domain(None));
+                rocket = rocket.manage(Domain(None));
             }
 
             if security == 0 {
