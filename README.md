@@ -1,41 +1,201 @@
 # gitlab-middleware
 
-## Overview
+# Overview
 
-This middleware translate gitlab webhook push into digestible format to be pulled by scheduler.
+This middleware acts as an abstraction layer between backend and an actual git server implementation.
+Currently the only supported git server is gitlab, hence the name gitlab-middleware.
 
 [Rust](https://rust-lang.org/) and [Rocket](https://rocket.rs/) are used because, why not?
 
-## Web interface
+# Web interface with backend
 
-Post to `https?://(?P<host>[^/]+)/hooks/(?P<courseId>\d+)/(?P<assignmentId>\d+)` with a valid payload. 
-Expecting gitlab push event only.
+## Outbound
 
-## Redis storage format
+Please see [documentation at oj-backend](https://github.com/ShanghaitechGeekPie/oj-backend/blob/master/README.md#interface-with-oj-middleware).
 
-On receiving event, first parse the upstream url from json payload. 
+## Inbound
 
-Then, add the url to the redis with current timestamp as score using `ZADD` under key `<courseId>:<assignmentId>`.
+###  `/users`
+Request 
 
-## Building & Deploying
+    HTTP 1.1 POST /users
+    {
+        "email": "wangdch@shanghaitech.edu.cn",
+        "password": "dummy"
+    }
 
-This service is expected to be built and deployed with docker. 
+Response
 
-## Configuring
+    HTTP 202 Created 
+    
+Request 
+
+    HTTP 1.1 POST /users
+    {
+        "email": "wangdch",
+        "password": "dummy"
+    }
+
+Response
+
+    HTTP 400 Bad Request
+    {"cause":"Invalid email"} 
+
+###  `/users/<user_email>/key`
+Request 
+
+    HTTP 1.1 POST /users/wangdch%40shanghaitech.edu.cn/key
+    {
+        "key": "---BEGIN RSA KEY---....",
+    }
+
+Response
+
+    HTTP 200 Ok 
+
+###  `/courses`
+Request 
+
+    HTTP 1.1 POST /courses
+    {
+        "name": "SI100c",
+        "uuid": "00000000-0000-0000-0000-000000000000",
+    }
+
+Response
+
+    HTTP 202 Created
+
+###  `/courses/<course_uid>/instructors`
+Request 
+
+    HTTP 1.1 POST /courses/00000000-0000-0000-0000-000000000000/instructors
+    {
+        "instructor_name": "chenhao@shanghaitech.edu.cn",
+    }
+
+Response
+
+    HTTP 200 Ok
+
+###  `/courses/<course_uid>/assignments`
+Request 
+
+    HTTP 1.1 POST /courses/00000000-0000-0000-0000-000000000000/assignments
+    {
+        "name": "hw0",
+        "uuid": "00000000-0000-0000-0000-000000000001",
+    }
+
+Response
+
+    HTTP 202 Created 
+
+###  `/courses/<course_uid>/assignments/<assignment_uid>/repos`
+Request 
+
+    HTTP 1.1 POST /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000001/repos
+    {
+        "owner_email": "wangdch@shanghaitech.edu.cn",
+        "repo_name": "wangdch",
+    }
+
+Response
+
+    HTTP 202 Created 
+
+###  `/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/download?format=<format>`
+Possible argument for `<format>` is `tar.gz`, `tar.bz2`, `tbz`, `tbz2`, `tb2`, `bz2`, `tar`, and `zip`.
+
+Request 
+
+    HTTP 1.1 GET /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000001/repos/wangdch/download?format=tar.gz
+    {
+        "owner_email": "wangdch@shanghaitech.edu.cn",
+        "repo_name": "wangdch",
+    }
+
+Response
+
+    HTTP/1.1 200 OK 
+    Content-Type: application/octet-stream
+    Content-Disposition: attachment; filename="gitlab-pub01-master-0000000000000000000000000000000000000000.tar.gz"
+    Etag: W/"66b236dce2a26ba5c409bcefead3a673"
+    Content-Transfer-Encoding: binary
+    <binary>
+
+# Building & Deploying
+
+This service is expected to be built and deployed with docker. This service requires you to supply a environment variable
+named `TOKEN_MAGIC_SALT` which could be an arbitrary string of 3~8 characters long. Longer may have *negligible* security 
+improvements for *negligible* performance penalty. Leaving it empty will not 
+
+# Configuring
 
 This is a Rocket application, so visit its [document](https://rocket.rs/v0.4/guide/configuration/#environment-variables)
 to know how to configure via environment variables.
 
-In addition, supply at least one of these Rocket configuration element or face a panic! 
-If you however set environment variable `mute_security=true`, it won't work, as you are supposed to set `ROCKET_MUTE_SECURITY=true`. 
+Here is an exhaustive list of configuration that this middleware accepts. Unknowns will be ignored. TODO really exhaustive.
 
-token name|description
----|---
-`gitlab_token`|[GitLab Webhooks Secret token](https://docs.gitlab.com/ee/user/project/integrations/webhooks.html#secret-token)
-`gitlab_domain`|The domain of gitlab server. Notice that you can add multiple A record for same domain name.
-`mute_security`|set to True to bypass this check
+config name|description|required
+---|---|---
+`backend_url`|A middleware visible url pointing towards the backend.|true
+`middleware_base`|A gitlab visible url pointing towards the middleware.|true
+`gitlab_auth_token`|The access token of gitlab server.|true
+`gitlab_base_url`|A middleware visible url pointing towards the gitlab.|true
+`gitlab_domain`|The domain of ip of inbound gitlab webhook.|false
+`gitlab_webhook_token_salt`|A salt used to enhance security. A default value will be used if not provided|false
 
-## TODOs
+A mysql DB needs to be set up too. The name should be `mysql` while the exact format is available [here](https://rocket.rs/v0.4/guide/state/#usage).
+
+# Setting up gitlab
+
+The backing gitlab server has to have these set:
+
+1. An admin account and its access token.
+2. Base url and stuff. 
+
+Middleware will handle the rest.
+
+# Clustering
+
+More than often, you don't have to worry about this middleware. 
+It is highly unlikely for this part of the oj suite to get overloaded first.
+Anyway, this middleware can scale up well with load balancer, since requests are all http.
+The only thing that could be called a hard cap is this middleware is not supposed to handle
+webhooks from multiple instances of gitlab, because different instances use different ids, ATs, etc.
+
+# TODOs
 
 1. Add tests.
-2. Perhaps add inbound payload validation instead of just using regular expression?
+1. Standardize error responding.
+2. Finalize all APIs.
+3. Minimize copying
+4. DB setup script. Migrations. Stuff.
+
+# Development notes
+
+This is a mix of style guide, reminder and spec.
+
+## Error handling
+1. Unpredicted schema change should PANIC, with no effort to rollback changes.
+2. UID/UUID not found should result in 404.
+3. Malformed/Invalid requests, e.g. missing fields, invalid email, should be 400 but not guaranteed, could also be 500/404.
+The only guarantee is nothing will be changed.
+4. 500 otherwise.
+
+## `APIFunction` vs `json!()`/string literal for outbound
+When these criteria are met, prefer `APIFunction` over `json!()`/string literal.
+
+1. Outbound message has to be composed from an inbound json message.
+2. There is some invariant in outbound message. 
+3. The same kind of message will be sent in multiple endpoints.
+
+## Endpoint function style
+    #[<method>("/endpoint/<dynamic>", ...)
+    fn endpoint_name(<FromParam>, <FromData>,   // these should be necessary to compose outbound message
+            <FromRequest>, <Configuration>      // these should be validated states and config
+            DBAccess, State<GitlabAPI>) {       // DBAcess and outbound apis.
+
+## Data notes
+1. Admin has owner access to all groups. Admin is the owner of all projects. 
