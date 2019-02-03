@@ -19,12 +19,16 @@
 use mysql::Error as MySQLError;
 use reqwest::Error as HTTPError;
 use serde_json::Error as JSONError;
+use std::str::Utf8Error;
+use uuid::parser::ParseError;
 
 #[derive(Debug)]
 pub enum Error {
     MySQLError(MySQLError),
     HTTPError(HTTPError),
     JSONError(JSONError),
+    Utf8Error(Utf8Error),
+    UuidError(ParseError),
     SomeError(&'static str),
 }
 
@@ -51,5 +55,17 @@ impl From<JSONError> for Error {
 impl From<HTTPError> for Error {
     fn from(exception: HTTPError) -> Self {
         Error::HTTPError(exception)
+    }
+}
+
+impl From<Utf8Error> for Error {
+    fn from(exception: Utf8Error) -> Self {
+        Error::Utf8Error(exception)
+    }
+}
+
+impl From<ParseError> for Error {
+    fn from(exception: ParseError) -> Self {
+        Error::UuidError(exception)
     }
 }

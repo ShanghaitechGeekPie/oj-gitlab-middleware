@@ -30,8 +30,9 @@ extern crate url;
 
 extern crate hex;
 extern crate sha2;
+extern crate uuid;
 
-use std::borrow::Cow;
+use std::borrow::{Borrow, Cow};
 use std::net::ToSocketAddrs;
 use std::io::Cursor;
 use std::str::Utf8Error;
@@ -51,6 +52,8 @@ use rocket_contrib::json::{Json, JsonValue};
 
 use serde_json::Value;
 
+use mysql::uuid::Uuid as UuidRaw;
+
 use url::Url;
 
 mod apis;
@@ -58,6 +61,21 @@ mod err;
 
 use apis::*;
 use err::*;
+
+struct Uuid<'a> {
+    parsed: UuidRaw,
+    original: Cow<'a, str>,
+}
+
+impl<'a> FromParam<'a> for Uuid<'a> {
+    type Error = Error;
+
+    fn from_param(param: &'a RawStr) -> Result<Self, Self::Error> {
+        let decoded = param.percent_decode()?;
+        let parsed = UuidRaw::parse_str(&decoded)?;
+        Ok(Uuid { parsed, original: decoded })
+    }
+}
 
 #[derive(Serialize)]
 struct ForwardedWebHookRequest<'a> {
@@ -73,13 +91,13 @@ impl<'a> APIFunction for ForwardedWebHookRequest<'a> {
 }
 
 #[post("/hooks/<course>/<assignment>", data = "<message>")]
-fn webhook(course: StrInUri, assignment: StrInUri, message: Json<JsonValue>,
+fn webhook(course: Uuid, assignment: Uuid, message: Json<JsonValue>,
            _event: Push,
            backend: State<BackendAPI>)
            -> GMResult<()> {
     let upstream = message["project"]["git_ssh_url"].as_str().expect("Schema changed");
 
-    backend.call(&ForwardedWebHookRequest { course_uid: &*course, assignment_uid: &*assignment, upstream })?.error_for_status()?;
+    backend.call(&ForwardedWebHookRequest { course_uid: &course.original, assignment_uid: &assignment.original, upstream })?.error_for_status()?;
     Ok(())
 }
 
@@ -171,6 +189,12 @@ impl<'a> Deref for StrInUri<'a> {
     }
 }
 
+impl<'a> Borrow<str> for StrInUri<'a> {
+    fn borrow(&self) -> &str {
+        &*self
+    }
+}
+
 impl<'a> FromParam<'a> for StrInUri<'a> {
     type Error = Utf8Error;
 
@@ -179,33 +203,11 @@ impl<'a> FromParam<'a> for StrInUri<'a> {
     }
 }
 
-struct DownloadFormat<'a>(Cow<'a, str>);
-
-impl<'a> Deref for DownloadFormat<'a> {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.0
-    }
-}
-
-impl<'a> FromFormValue<'a> for DownloadFormat<'a> {
-    type Error = Utf8Error;
-
-    fn from_form_value(form_value: &'a RawStr) -> Result<Self, Self::Error> {
-        form_value.percent_decode().map(DownloadFormat)
-    }
-
-    fn default() -> Option<Self> {
-        Some(DownloadFormat(Cow::Borrowed(".tar.gz")))
-    }
-}
-
 #[post("/users/<user_email>/key", data = "<message>")]
 fn update_key(user_email: StrInUri, message: Json<UpdateKey>,
               mut db: DBAccess, gitlab_api: State<GitLabAPI>)
               -> GMResult<Status> {
-    match db.translate_uid(&*user_email) {
+    match db.translate_uid(&user_email) {
         Ok(id) => {
             gitlab_api.remove_keys(id)?;
             gitlab_api.call(&AddKeyGitlab::new(id, &message.key))?;
@@ -224,7 +226,7 @@ fn update_key(user_email: StrInUri, message: Json<UpdateKey>,
 #[derive(Deserialize)]
 struct CreateGroup<'a> {
     name: &'a str,
-    uuid: &'a str,
+    uuid: UuidRaw,
 }
 
 #[derive(Serialize)]
@@ -258,13 +260,13 @@ fn create_course(message: Json<CreateGroup>,
                  mut db: DBAccess, gitlab_api: State<GitLabAPI>)
                  -> GMResult<Status> {
     let r: Value = gitlab_api.call(&CreateGroupGitlab::from(&*message))?.json()?;
-    db.remember_uuid(message.uuid, r["id"].as_u64().expect("Gitlab schema changed")).map(|_| Status::Created)
+    db.remember_uuid(&message.uuid, r["id"].as_u64().expect("Gitlab schema changed")).map(|_| Status::Created)
 }
 
 #[derive(Deserialize)]
 struct CreateAssignment<'a> {
     name: &'a str,
-    uuid: &'a str,
+    uuid: UuidRaw,
 }
 
 impl<'a> CreateGroupGitlab<'a> {
@@ -278,13 +280,13 @@ impl<'a> CreateGroupGitlab<'a> {
     }
 }
 
-#[post("/courses/<parent>/assignments", data = "<message>")]
-fn create_assignment(parent: StrInUri, message: Json<CreateAssignment>,
+#[post("/courses/<parent_uid>/assignments", data = "<message>")]
+fn create_assignment(parent_uid: Uuid, message: Json<CreateAssignment>,
                      mut db: DBAccess, gitlab_api: State<GitLabAPI>)
                      -> GMResult<Status> {
-    let parent_id = db.translate_uuid(&*parent)?;
+    let parent_id = db.translate_uuid(&parent_uid.parsed)?;
     let response: Value = gitlab_api.call(&CreateGroupGitlab::assignment(&*message, parent_id))?.json()?;
-    db.remember_uuid(message.uuid, response["id"].as_u64().expect("Gitlab schema changed"))
+    db.remember_uuid(&message.uuid, response["id"].as_u64().expect("Gitlab schema changed"))
         .map(|_| Status::Created)
 }
 
@@ -314,7 +316,7 @@ impl APIFunction for AddUserToGroupGitlab {
 }
 
 #[post("/courses/<course_uuid>/instructors", data = "<message>")]
-fn add_instructor_to_course<'r>(course_uuid: StrInUri, message: Json<AddInstructorToCourse>,
+fn add_instructor_to_course<'r>(course_uuid: Uuid, message: Json<AddInstructorToCourse>,
                                 mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>)
                                 -> GMResult<()> {
     let course_id = db.translate_uuid(&*course_uuid)?;
@@ -395,11 +397,11 @@ impl APIFunction for AddUserToProjectGitlab {
 }
 
 #[post("/courses/<course_uid>/assignments/<assignment_uid>/repos", data = "<message>")]
-fn create_repo(course_uid: StrInUri, assignment_uid: StrInUri, message: Json<CreateRepo>,
+fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>,
                token_salt: State<TokenSalt>, middleware_base: State<MiddlewareBase>,
                mut db: DBAccess, gitlab_api: State<GitLabAPI>)
                -> GMResult<String> {
-    let assignment_id = db.translate_uuid(&*assignment_uid)?;
+    let assignment_id = db.translate_uuid(&assignment_uid.parsed)?;
     let user_id = db.translate_uid(message.owner_email)?;
     // create repo
     let response: Value = gitlab_api.call(&CreateRepoGitlab::new(message.repo_name, assignment_id))?.json()?;
@@ -417,11 +419,33 @@ fn create_repo(course_uid: StrInUri, assignment_uid: StrInUri, message: Json<Cre
     Ok(format!(r#"{{"ssh_url_to_repo":{}}}"#, repo_url))
 }
 
+struct DownloadFormat<'a>(Cow<'a, str>);
+
+impl<'a> Deref for DownloadFormat<'a> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.0
+    }
+}
+
+impl<'a> FromFormValue<'a> for DownloadFormat<'a> {
+    type Error = Utf8Error;
+
+    fn from_form_value(form_value: &'a RawStr) -> Result<Self, Self::Error> {
+        form_value.percent_decode().map(DownloadFormat)
+    }
+
+    fn default() -> Option<Self> {
+        Some(DownloadFormat(Cow::Borrowed(".tar.gz")))
+    }
+}
+
 #[get("/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/download?<format>")]
-fn download_repo<'r>(course_uid: StrInUri, assignment_uid: StrInUri, repo_name: StrInUri, format: DownloadFormat,
+fn download_repo<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri, format: DownloadFormat,
                      mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>)
                      -> GMResult<Response<'r>> {
-    let repo_id = db.translate_repo_id(&*course_uid, &*assignment_uid, &*repo_name)?;
+    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &*repo_name)?;
     let response = gitlab_api.call_no_body(Method::GET, &format!("projects/{}/repository/archive{}", repo_id, &*format))?;
     let mut ret = Response::build();
     {
@@ -436,6 +460,16 @@ fn download_repo<'r>(course_uid: StrInUri, assignment_uid: StrInUri, repo_name: 
     ret.header(ContentType::Binary);
     ret.streamed_body(response);
     Ok(ret.finalize())
+}
+
+//================================================================================
+#[get("/healthcheck")]
+fn healthcheck(mut db: DBAccess, gitlab_api: State<GitLabAPI>/*, backend: State<BackendAPI>*/) -> Status {
+    if db.0.ping() && gitlab_api.call_no_body(Method::GET, "").is_ok() {
+        Status::Ok
+    } else {
+        Status::InternalServerError
+    }
 }
 
 //================================================================================
@@ -454,23 +488,23 @@ impl DBAccess {
         Ok(())
     }
 
-    fn translate_uuid(&mut self, uuid: &str) -> GMResult<u64> {
+    fn translate_uuid(&mut self, uuid: &UuidRaw) -> GMResult<u64> {
         self.0.first_exec(r"SELECT gitlab_id FROM uuids WHERE uuid=?", (uuid, ))
             ?.ok_or(Error::new("No such UUID"))
     }
 
-    fn remember_uuid(&mut self, uuid: &str, id: u64) -> GMResult<()> {
+    fn remember_uuid(&mut self, uuid: &UuidRaw, id: u64) -> GMResult<()> {
         self.0.prep_exec(r"INSERT INTO gitlab_id(gitlab_id, uuid) VALUES (?, ?)", (id, uuid))?;
 
         Ok(())
     }
 
-    fn translate_repo_id(&mut self, course_uid: &str, assignment_uid: &str, name: &str) -> GMResult<u64> {
+    fn translate_repo_id(&mut self, course_uid: &UuidRaw, assignment_uid: &UuidRaw, name: &str) -> GMResult<u64> {
         self.0.first_exec(r"SELECT repo_id FROM repo_ids WHERE course_uid=? AND assignment_uid=? AND name=? ", (course_uid, assignment_uid, name))
             ?.ok_or(Error::new("No such repo"))
     }
 
-    fn remember_repo_id(&mut self, course_uid: &str, assignment_uid: &str, name: &str, id: u64) -> GMResult<()> {
+    fn remember_repo_id(&mut self, course_uid: &UuidRaw, assignment_uid: &UuidRaw, name: &str, id: u64) -> GMResult<()> {
         self.0.prep_exec(r"INSERT INTO repo_ids(repo_id, course_uid, assignment_uid, name) VALUES (?, ?, ?, ?)", (id, course_uid, assignment_uid, name))?;
 
         Ok(())
