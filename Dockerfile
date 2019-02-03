@@ -15,6 +15,6 @@ RUN cd /app && \
 
 COPY . /app/
 WORKDIR /app
-RUN cargo build --release
+RUN cargo +nightly build --release
 
-CMD cargo run --release
+CMD entry-point.sh

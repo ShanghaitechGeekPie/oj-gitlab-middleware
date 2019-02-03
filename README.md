@@ -199,3 +199,10 @@ When these criteria are met, prefer `APIFunction` over `json!()`/string literal.
 
 ## Data notes
 1. Admin has owner access to all groups. Admin is the owner of all projects. 
+
+## Migrations
+Manually create migration sql in `setup/` directories. 
+Wrap the changes in a stored procedure.
+Call the dependant procedure.
+Add the source node in `entry-point.sh`, remove intermediate nodes as well.
+ 
