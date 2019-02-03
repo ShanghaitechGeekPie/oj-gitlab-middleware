@@ -15,6 +15,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::borrow::Cow;
 use std::net::IpAddr;
 use std::convert::From;
 
@@ -35,7 +36,7 @@ use sha2::{Digest, Sha512};
 
 pub trait APIFunction: Serialize {
     fn method() -> Method { Method::POST }
-    fn path(&self) -> String;
+    fn path(&self) -> Cow<str>;
 }
 
 pub trait APIAccessor {

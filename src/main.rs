@@ -15,7 +15,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#![feature(proc_macro_hygiene, decl_macro, result_map_or_else, ip, integer_atomics)]
+#![feature(proc_macro_hygiene, decl_macro, result_map_or_else, ip)]
 
 extern crate reqwest;
 #[macro_use]
@@ -85,8 +85,8 @@ struct ForwardedWebHookRequest<'a> {
 }
 
 impl<'a> APIFunction for ForwardedWebHookRequest<'a> {
-    fn path(&self) -> String {
-        ".".to_string()
+    fn path(&self) -> Cow<str> {
+        Cow::Borrowed(".")
     }
 }
 
@@ -131,8 +131,8 @@ impl<'a> CreateUserGitLab<'a> {
 }
 
 impl<'a> APIFunction for CreateUserGitLab<'a> {
-    fn path(&self) -> String {
-        String::from("users")
+    fn path(&self) -> Cow<str> {
+        Cow::Borrowed("users")
     }
 }
 
@@ -174,8 +174,8 @@ impl<'a> AddKeyGitlab<'a> {
 }
 
 impl<'a> APIFunction for AddKeyGitlab<'a> {
-    fn path(&self) -> String {
-        format!("users/{}/keys", self.id)
+    fn path(&self) -> Cow<str> {
+        Cow::Owned(format!("users/{}/keys", self.id))
     }
 }
 
@@ -250,8 +250,8 @@ impl<'a> From<&'a CreateGroup<'a>> for CreateGroupGitlab<'a> {
 }
 
 impl<'a> APIFunction for CreateGroupGitlab<'a> {
-    fn path(&self) -> String {
-        String::from("groups")
+    fn path(&self) -> Cow<str> {
+        Cow::Borrowed("groups")
     }
 }
 
@@ -310,8 +310,8 @@ impl AddUserToGroupGitlab {
 }
 
 impl APIFunction for AddUserToGroupGitlab {
-    fn path(&self) -> String {
-        format!("groups/{}/members", self.group_id)
+    fn path(&self) -> Cow<str> {
+        Cow::Owned(format!("groups/{}/members", self.group_id))
     }
 }
 
@@ -349,8 +349,8 @@ impl<'a> CreateRepoGitlab<'a> {
 }
 
 impl<'a> APIFunction for CreateRepoGitlab<'a> {
-    fn path(&self) -> String {
-        "/projects/".to_string()
+    fn path(&self) -> Cow<str> {
+        Cow::Borrowed("/projects/")
     }
 }
 
@@ -370,8 +370,8 @@ impl<'a> CreateWebhookGitlab<'a> {
 }
 
 impl<'a> APIFunction for CreateWebhookGitlab<'a> {
-    fn path(&self) -> String {
-        format!("projects/{}/hooks", self.project_id)
+    fn path(&self) -> Cow<str> {
+        Cow::Owned(format!("projects/{}/hooks", self.project_id))
     }
 }
 
@@ -391,8 +391,8 @@ impl AddUserToProjectGitlab {
 }
 
 impl APIFunction for AddUserToProjectGitlab {
-    fn path(&self) -> String {
-        format!("projects/{}/members", self.project_id)
+    fn path(&self) -> Cow<str> {
+        Cow::Owned(format!("projects/{}/members", self.project_id))
     }
 }
 
@@ -437,7 +437,7 @@ impl<'a> FromFormValue<'a> for DownloadFormat<'a> {
     }
 
     fn default() -> Option<Self> {
-        Some(DownloadFormat(Cow::Borrowed(".tar.gz")))
+        Some(DownloadFormat(Cow::Borrowed("tar.gz")))
     }
 }
 
@@ -446,7 +446,7 @@ fn download_repo<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri
                      mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>)
                      -> GMResult<Response<'r>> {
     let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &*repo_name)?;
-    let response = gitlab_api.call_no_body(Method::GET, &format!("projects/{}/repository/archive{}", repo_id, &*format))?;
+    let response = gitlab_api.call_no_body(Method::GET, &format!("projects/{}/repository/archive.{}", repo_id, &*format))?;
     let mut ret = Response::build();
     {
         if let Some(Ok(desposition)) = response.headers().get("Content-Disposition").map(HeaderValue::to_str) {
