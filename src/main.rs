@@ -319,8 +319,8 @@ impl APIFunction for AddUserToGroupGitlab {
 fn add_instructor_to_course<'r>(course_uuid: Uuid, message: Json<AddInstructorToCourse>,
                                 mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>)
                                 -> GMResult<()> {
-    let course_id = db.translate_uuid(&*course_uuid)?;
-    let user_id = db.translate_uid(&*message.instructor_name)?;
+    let course_id = db.translate_uuid(&course_uuid.parsed)?;
+    let user_id = db.translate_uid(message.instructor_name)?;
     gitlab_api.call(&AddUserToGroupGitlab::new(user_id, course_id, 50))?;
     Ok(())
 }
@@ -407,9 +407,9 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     let response: Value = gitlab_api.call(&CreateRepoGitlab::new(message.repo_name, assignment_id))?.json()?;
     let repo_id = response["id"].as_u64().expect("Gitlab schema changed");
     let repo_url = response["ssh_url_to_repo"].as_str().expect("Gitlab schema changed");
-    db.remember_repo_id(&*course_uid, &*assignment_uid, message.repo_name, repo_id)?;
+    db.remember_repo_id(&course_uid.parsed, &assignment_uid.parsed, message.repo_name, repo_id)?;
     // setup webhook
-    let webhook = format!("{}/hooks/{}/{}", middleware_base.0, &*course_uid, &*assignment_uid);
+    let webhook = format!("{}/hooks/{}/{}", middleware_base.0, &course_uid.original, &assignment_uid.original);
     let token = calc_token(&webhook, &*token_salt);
     gitlab_api.call(&CreateWebhookGitlab::new(repo_id, &webhook, &token))?;
     // set all branches as protected branch
