@@ -20,5 +20,6 @@ RUN cd /app && \
 COPY . /app/
 WORKDIR /app
 RUN cargo +nightly build --color never --release
+RUN chmod +x /app/entry-point.sh
 
 CMD /app/entry-point.sh
