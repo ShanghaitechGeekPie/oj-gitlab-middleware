@@ -17,13 +17,8 @@ RUN cd /app && \
     cargo build --color never --release --lib && \
     rm src/lib.rs
 
-# Only copy stuff necessary for a build
-COPY src /app/
+COPY . /app/
 WORKDIR /app
 RUN cargo +nightly build --color never --release
-
-# Copy everything else
-COPY . /app/
-RUN chmod +x /app/entry-point.sh
 
 CMD /app/entry-point.sh
