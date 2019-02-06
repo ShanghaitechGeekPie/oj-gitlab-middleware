@@ -21,4 +21,4 @@ COPY . /app/
 WORKDIR /app
 RUN cargo +nightly build --color never --release
 
-CMD entry-point.sh
+CMD /app/entry-point.sh
