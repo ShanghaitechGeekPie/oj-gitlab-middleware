@@ -14,11 +14,11 @@ ADD Cargo.lock /app/
 RUN cd /app && \
     mkdir src && \
     touch src/lib.rs && \
-    cargo build --color never --release --lib -- --color=never && \
+    cargo build --color never --release --lib && \
     rm src/lib.rs
 
 COPY . /app/
 WORKDIR /app
-RUN cargo +nightly build --color never --release -- --color=never
+RUN cargo +nightly build --color never --release
 
 CMD entry-point.sh
