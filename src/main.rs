@@ -515,7 +515,7 @@ struct MiddlewareBase(String);
 
 fn main() {
     rocket::ignite()
-        .attach(DBAccess.fairing())
+        .attach(DBAccess::fairing())
         .attach(AdHoc::on_attach("BackendAPI", |r| {
             let c = r.config().get_string("backend_url").expect("backend_url not set");
             let url = Url::options().parse(&c).expect("backend_url invalid");
