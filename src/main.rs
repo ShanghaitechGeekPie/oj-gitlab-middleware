@@ -560,6 +560,6 @@ fn main() {
                 r.manage(Domain::new(None))
             })
         }))
-        .mount("/", routes![webhook,webhook,create_user,update_key,create_course,create_assignment,add_instructor_to_course,create_repo,download_repo,healthcheck])
+        .mount("/", routes![webhook,create_user,update_key,create_course,create_assignment,add_instructor_to_course,create_repo,download_repo,healthcheck])
         .launch();
 }
