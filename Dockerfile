@@ -24,5 +24,6 @@ RUN cargo +nightly build --color never --release
 
 # Copy everything else
 COPY . /app/
+RUN chmod +x /app/entry-point.sh
 
 CMD /app/entry-point.sh
