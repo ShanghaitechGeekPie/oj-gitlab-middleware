@@ -5,7 +5,7 @@ MAINTAINER llk89 @ ShanghaiTech GeekPie Association
 EXPOSE 8000
 
 RUN apt-get update && \
-    apt-get install -y pkg-config libssl-dev
+    apt-get install -y pkg-config libssl-dev mysql-client
 
 # https://users.rust-lang.org/t/creating-official-docker-image-for-rust/4165/7
 # Cache dependency
