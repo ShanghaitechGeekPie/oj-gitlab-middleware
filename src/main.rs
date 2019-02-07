@@ -467,7 +467,7 @@ fn download_repo<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri
 fn healthcheck(mut db: DBAccess, gitlab_api: State<GitLabAPI>/*, backend: State<BackendAPI>*/) -> Response {
     if !db.0.ping() {
         Response::build().status(Status::InternalServerError).sized_body(Cursor::new("db offline")).finalize()
-    } else if gitlab_api.call_no_body(Method::GET, "").is_err() {
+    } else if gitlab_api.call_no_body(Method::GET, "../../-/health").is_err() {
         Response::build().status(Status::InternalServerError).sized_body(Cursor::new("gitlab offline")).finalize()
     } else {
         Response::build().sized_body(Cursor::new("OK")).finalize()
