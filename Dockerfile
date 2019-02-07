@@ -7,6 +7,10 @@ EXPOSE 8000
 RUN apt-get update && \
     apt-get install -y pkg-config libssl-dev mysql-client
 
+# Shut these ****ing ANSI escape off
+# For CI's sake
+ENV TERM dumb
+
 # https://users.rust-lang.org/t/creating-official-docker-image-for-rust/4165/7
 # Cache dependency
 ADD Cargo.toml /app/
