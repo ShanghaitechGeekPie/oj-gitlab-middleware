@@ -59,7 +59,7 @@ webhooks from multiple instances of gitlab, because different instances use diff
 1. Standardize error responding.
 2. Finalize all APIs.
 3. Minimize copying
-4. DB setup script. Migrations. Stuff.
+4. DB setup script. Migrations. Stuff. Remove dependency over `mysql-client`, which bloat the image size 3 folds.
 
 # Development notes
 
