@@ -109,10 +109,8 @@ impl GitLabAPI {
     pub fn remove_keys(&self, id: u64) -> GMResult<()> {
         let keys: JsonValue = self.call_no_body(Method::GET, &format!("users/{}/keys", id))?.json()?;
 
-        if let Some(arr) = keys.as_array() {
-            for val in arr {
-                self.call_no_body(Method::DELETE, &format!("users/{}/keys/{}", id, val["id"].as_str().expect("Gitlab schema changed.")))?;
-            }
+        for val in keys.as_array().iter().map(|k| k.iter()).flatten() {
+            self.call_no_body(Method::DELETE, &format!("users/{}/keys/{}", id, val["id"].as_u64().expect("Gitlab schema changed.")))?;
         }
 
         Ok(())

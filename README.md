@@ -127,6 +127,18 @@ Response
 
     HTTP 400 Bad Request
     {"cause":"Invalid email"} 
+    
+Request 
+
+    POST /users
+    {
+        "email": "wangdch@shanghaitech.edu.cn",
+        "password": "dummy"
+    }
+
+Response
+
+    HTTP 500 Bad Request
 
 ###  `/users/<user_email>/key`
 Request 
