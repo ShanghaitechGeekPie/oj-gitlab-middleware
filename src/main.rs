@@ -537,7 +537,7 @@ impl DBAccess {
     }
 
     fn remember_uuid(&mut self, uuid: &UuidRaw, id: u64) -> GMResult<()> {
-        self.0.prep_exec(r"INSERT INTO gitlab_id(gitlab_id, uuid) VALUES (?, ?)", (id, uuid))?;
+        self.0.prep_exec(r"INSERT INTO uuids(gitlab_id, uuid) VALUES (?, ?)", (id, uuid))?;
 
         Ok(())
     }
