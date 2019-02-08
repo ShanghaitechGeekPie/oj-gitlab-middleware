@@ -17,7 +17,7 @@ Copyright (c) 2019 llk89.
 
 drop procedure if exists setup_1;
 
-create procedure setup_1
+create procedure setup_1()
 begin
   create table if not exists repo_ids
   (
@@ -52,7 +52,5 @@ begin
       primary key
   );
 
-  if not exists(select * from version where id = 0) then
-    insert into version (id) values (0);
-  end if;
+  insert ignore into version (id) values (0);
 end;
