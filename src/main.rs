@@ -366,7 +366,7 @@ impl<'a> CreateRepoGitlab<'a> {
 
 impl<'a> APIFunction for CreateRepoGitlab<'a> {
     fn path(&self) -> Cow<str> {
-        Cow::Borrowed("/projects/")
+        Cow::Borrowed("projects/")
     }
 }
 
