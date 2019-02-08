@@ -461,10 +461,10 @@ impl<'a> FromFormValue<'a> for DownloadFormat<'a> {
 }
 
 #[get("/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/download?<format>")]
-fn download_repo<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri, format: DownloadFormat,
+fn download_repo<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: &RawStr, format: DownloadFormat,
                      mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>)
                      -> GMResult<Response<'r>> {
-    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &*repo_name)?;
+    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &repo_name.percent_decode()?)?;
     let response = gitlab_api.call_no_body(Method::GET, &format!("projects/{}/repository/archive.{}", repo_id, &*format))?;
     let mut ret = Response::build();
     {
@@ -482,10 +482,10 @@ fn download_repo<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri
 }
 
 #[get("/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/commits?<page>")]
-fn commits<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri, page: Option<StrInUri>,
+fn commits<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: &RawStr, page: Option<StrInUri>,
                mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>)
                -> GMResult<Response<'r>> {
-    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &*repo_name)?;
+    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &repo_name.percent_decode()?)?;
     let response = if let Some(next_page) = page {
         gitlab_api.call_no_body(Method::GET, &next_page)
     } else {
