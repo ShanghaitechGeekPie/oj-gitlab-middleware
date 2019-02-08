@@ -28,7 +28,9 @@ Here is an exhaustive list of configuration that this middleware accepts. Unknow
 config name|description|required
 ---|---|---
 `backend_url`|A middleware visible url pointing towards the backend.|true
-`middleware_base`|A gitlab visible url pointing towards the middleware.|true
+`middleware_base`|A gitlab visible url pointing towards the middleware. 
+This must not be something like `http://middleware:8000`. 
+It must be  `http://middleware.localnetwork:8000` or something.|true
 `gitlab_auth_token`|The access token of gitlab server.|true
 `gitlab_base_url`|A middleware visible url pointing towards the gitlab.|true
 `gitlab_domain`|The domain of ip of inbound gitlab webhook.|false
@@ -42,8 +44,10 @@ The backing gitlab server has to have these set:
 
 1. An admin account and its access token.
 2. Base url and stuff. 
-
-Middleware will handle the rest.
+3. You have to read [this](https://docs.gitlab.com/ce/security/webhooks.html). 
+Since gitlab is completely hidden behind this middleware, 
+and you are probably deploying these two together on the same machine,
+you will probably want to turn that option on.
 
 # Clustering
 
@@ -196,7 +200,7 @@ Response
 ###  `/courses/<course_uid>/assignments/<assignment_uid>/repos`
 Request 
 
-    POST /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000001/repos
+    POST /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000000/repos
     {
         "owner_email": "wangdch@shanghaitech.edu.cn",
         "repo_name": "wangdch",

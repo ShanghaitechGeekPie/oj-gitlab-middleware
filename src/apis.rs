@@ -21,7 +21,7 @@ use std::convert::From;
 
 use ::{Error, GMResult};
 
-use reqwest::{Client, ClientBuilder, Method, Response};
+use reqwest::{Client, ClientBuilder, Method, Response, Body};
 use reqwest::header::{HeaderMap, HeaderValue};
 use url::Url;
 
@@ -69,6 +69,19 @@ pub trait APIAccessor {
         } else {
             self.client().request(method, self.base().join(path).expect("Invalid URL"))
                 .json(body)
+                .send()
+        }?.error_for_status().map_err(|e| Error::from(e))
+    }
+
+    fn execute_plain_body<T: Into<Body>>(&self, method: Method, path: &str, body: &str, sudo: Option<&str>) -> GMResult<Response> {
+        if let Some(user) = sudo {
+            self.client().request(method, self.base().join(path).expect("Invalid URL"))
+                .body(body)
+                .header("sudo", user)
+                .send()
+        } else {
+            self.client().request(method, self.base().join(path).expect("Invalid URL"))
+                .body(body)
                 .send()
         }?.error_for_status().map_err(|e| Error::from(e))
     }

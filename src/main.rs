@@ -417,6 +417,9 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
                token_salt: State<TokenSalt>, middleware_base: State<MiddlewareBase>,
                mut db: DBAccess, gitlab_api: State<GitLabAPI>)
                -> GMResult<String> {
+    if db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &message.repo_name).is_ok() {
+        return Err(Error::AlreadyExists)
+    }
     let assignment_id = db.translate_uuid(&assignment_uid.parsed)?;
     let user_id = db.translate_uid(message.owner_email)?;
     // create repo
@@ -429,7 +432,7 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     let token = calc_token(&webhook, &*token_salt);
     gitlab_api.call(&CreateWebhookGitlab::new(repo_id, &webhook, &token))?;
     // set all branches as protected branch
-    gitlab_api.execute(Method::POST, &format!("projects/{}/protected_branches", repo_id), r#"{"name":"*"}"#, None)?;
+    gitlab_api.execute(Method::POST, &format!("projects/{}/protected_branches", repo_id), r#"{ "name" : "*" }"#, None)?;
     // setup student permission
     gitlab_api.call(&AddUserToProjectGitlab::new(repo_id, user_id))?;
     Ok(format!(r#"{{"ssh_url_to_repo":{}}}"#, repo_url))

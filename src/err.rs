@@ -29,6 +29,7 @@ pub enum Error {
     JSONError(JSONError),
     Utf8Error(Utf8Error),
     UuidError(ParseError),
+    AlreadyExists,
     SomeError(&'static str),
 }
 
