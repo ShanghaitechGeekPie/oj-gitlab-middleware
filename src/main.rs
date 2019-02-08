@@ -143,6 +143,12 @@ fn create_user<'a>(user: Json<CreateUser>,
                    mut db: DBAccess, gitlab_api: State<'a, GitLabAPI>)
                    -> GMResult<Response<'a>> {
     let mut builder = Response::build();
+    if user.password.len() < 8 {
+        return Ok(builder.status(Status::BadRequest)
+            .header(ContentType::JSON)
+            .sized_body(Cursor::new(r#"{"cause":"Password too short (len<8)"}"#))
+            .finalize())
+    }
     if let Ok(outbound) = CreateUserGitLab::from(&*user) {
         let response: Value = gitlab_api.call(&outbound)?.json()?;
         db.remember_uid(&user.email, response["id"].as_u64().expect("Gitlab schema changed"))?;
