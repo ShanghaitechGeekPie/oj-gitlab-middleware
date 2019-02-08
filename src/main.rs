@@ -27,7 +27,7 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 extern crate url;
-
+extern crate percent_encoding;
 extern crate hex;
 extern crate sha2;
 extern crate uuid;
@@ -43,7 +43,7 @@ use reqwest::header::HeaderValue;
 
 use rocket::State;
 use rocket::fairing::AdHoc;
-use rocket::http::{ContentType, Header, RawStr, Status};
+use rocket::http::{ContentType, Header, RawStr, Status, uri::Origin};
 use rocket::request::{FromParam, FromFormValue};
 use rocket::response::Response;
 
@@ -200,6 +200,14 @@ impl<'a> FromParam<'a> for StrInUri<'a> {
 
     fn from_param(param: &'a RawStr) -> Result<Self, Self::Error> {
         param.percent_decode().map(StrInUri)
+    }
+}
+
+impl<'a> FromFormValue<'a> for StrInUri<'a> {
+    type Error = Utf8Error;
+
+    fn from_form_value(form_value: &'a RawStr) -> Result<Self, Self::Error> {
+        form_value.percent_decode().map(StrInUri)
     }
 }
 
@@ -462,9 +470,35 @@ fn download_repo<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri
     Ok(ret.finalize())
 }
 
+#[get("/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/commits?<page>")]
+fn commits<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri, page: Option<StrInUri>,
+               mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>)
+               -> GMResult<Response<'r>> {
+    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &*repo_name)?;
+    let response = if let Some(next_page) = page {
+        gitlab_api.call_no_body(Method::GET, &next_page)
+    } else {
+        gitlab_api.call_no_body(Method::GET, &format!("projects/{}/repository/commits?per_page=100", repo_id))
+    }?;
+    let mut ret = Response::build();
+    {
+        if let Some(Ok(link)) = response.headers().get("Link").map(HeaderValue::to_str) {
+            if let Some(next) = link.split(",").find(|s| s.trim().ends_with(r#"rel="next"#)) {
+                let gitlab_link: &str = &next[next.find("<").expect("gitlab schema changed") + 1..next.find(">").expect("gitlab schema changed")];
+                let encoded = percent_encoding::percent_encode(gitlab_link.as_bytes(), percent_encoding::QUERY_ENCODE_SET);
+                ret.header(Header::new("Link", format!(r#"<commits?page={}>; rel="next""#, encoded)));// replace url TODO
+            }
+        }
+    }
+    ret.header(ContentType::JSON);
+    ret.streamed_body(response);
+    Ok(ret.finalize())
+}
+
 //================================================================================
 #[get("/healthcheck")]
-fn healthcheck(mut db: DBAccess, gitlab_api: State<GitLabAPI>/*, backend: State<BackendAPI>*/) -> Response {
+fn healthcheck<'r>(mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>, origin: &Origin<'r>/*, backend: State<BackendAPI>*/) -> Response<'r> {
+    println!("{:?}", origin.to_string());
     if !db.0.ping() {
         Response::build().status(Status::InternalServerError).sized_body(Cursor::new("db offline")).finalize()
     } else if gitlab_api.call_no_body(Method::GET, "../../-/health").is_err() {
@@ -563,6 +597,9 @@ fn main() {
                 r.manage(Domain::new(None))
             })
         }))
-        .mount("/", routes![webhook,create_user,update_key,create_course,create_assignment,add_instructor_to_course,create_repo,download_repo,healthcheck])
+        .mount("/", routes![
+            webhook,create_user,update_key,create_course,create_assignment,
+            add_instructor_to_course,create_repo,download_repo,healthcheck,commits
+        ])
         .launch();
 }

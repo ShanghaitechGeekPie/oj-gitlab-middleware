@@ -105,7 +105,7 @@ Please see [documentation at oj-backend](https://github.com/ShanghaitechGeekPie/
 ###  `/users`
 Request 
 
-    HTTP 1.1 POST /users
+    POST /users
     {
         "email": "wangdch@shanghaitech.edu.cn",
         "password": "dummy"
@@ -117,7 +117,7 @@ Response
     
 Request 
 
-    HTTP 1.1 POST /users
+    POST /users
     {
         "email": "wangdch",
         "password": "dummy"
@@ -131,7 +131,7 @@ Response
 ###  `/users/<user_email>/key`
 Request 
 
-    HTTP 1.1 POST /users/wangdch%40shanghaitech.edu.cn/key
+    POST /users/wangdch%40shanghaitech.edu.cn/key
     {
         "key": "---BEGIN RSA KEY---....",
     }
@@ -143,7 +143,7 @@ Response
 ###  `/courses`
 Request 
 
-    HTTP 1.1 POST /courses
+    POST /courses
     {
         "name": "SI100c",
         "uuid": "00000000-0000-0000-0000-000000000000",
@@ -156,7 +156,7 @@ Response
 ###  `/courses/<course_uid>/instructors`
 Request 
 
-    HTTP 1.1 POST /courses/00000000-0000-0000-0000-000000000000/instructors
+    POST /courses/00000000-0000-0000-0000-000000000000/instructors
     {
         "instructor_name": "chenhao@shanghaitech.edu.cn",
     }
@@ -168,7 +168,7 @@ Response
 ###  `/courses/<course_uid>/assignments`
 Request 
 
-    HTTP 1.1 POST /courses/00000000-0000-0000-0000-000000000000/assignments
+    POST /courses/00000000-0000-0000-0000-000000000000/assignments
     {
         "name": "hw0",
         "uuid": "00000000-0000-0000-0000-000000000001",
@@ -181,7 +181,7 @@ Response
 ###  `/courses/<course_uid>/assignments/<assignment_uid>/repos`
 Request 
 
-    HTTP 1.1 POST /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000001/repos
+    POST /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000001/repos
     {
         "owner_email": "wangdch@shanghaitech.edu.cn",
         "repo_name": "wangdch",
@@ -196,11 +196,7 @@ Possible argument for `<format>` is `tar.gz`, `tar.bz2`, `tbz`, `tbz2`, `tb2`, `
 
 Request 
 
-    HTTP 1.1 GET /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000001/repos/wangdch/download?format=tar.gz
-    {
-        "owner_email": "wangdch@shanghaitech.edu.cn",
-        "repo_name": "wangdch",
-    }
+    GET /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000001/repos/wangdch/download?format=tar.gz
 
 Response
 
@@ -210,3 +206,32 @@ Response
     Etag: W/"66b236dce2a26ba5c409bcefead3a673"
     Content-Transfer-Encoding: binary
     <binary>
+
+###  `/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/commits?page=<page>`
+page query prama should be omitted on first call.
+
+Request 
+
+    GET /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000001/repos/wangdch/commits
+
+Response
+
+    HTTP/1.1 200 OK 
+    Content-Type: application/json
+    Link: <commits?page=http%3A%2F%2Flol%2Ffoo%2Fbar%3Fnext%3D102>; rel="next"
+    <a large json>
+    
+Next page:
+
+Request 
+
+    GET /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000001/repos/wangdch/commits?page=http%3A%2F%2Flol%2Ffoo%2Fbar%3Fnext%3D102
+
+Response
+
+    HTTP/1.1 200 OK 
+    Content-Type: application/json
+    <a large json>
+    
+Clients should make no assumption over the content of page. It should consider it to be something like a token that
+has no meaning.

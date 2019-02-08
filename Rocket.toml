@@ -1,6 +1,6 @@
 [development]
 gitlab_token = "test"
-databases = {mysql = {url = "mysql://root:chuchuwentiniao@192.168.191.123:3306/ojtest"}}
+databases = {mysql = {url = "mysql://root:chuchuwentiniao@192.168.191.123:3306/gitlab-middleware"}}
 
 [staging]
 address = "0.0.0.0"
