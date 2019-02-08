@@ -43,9 +43,9 @@ begin
 
   create table if not exists uuids
   (
-    uid  bigint unsigned not null
+    gitlab_id bigint(64) unsigned not null
       primary key,
-    uuid binary(16)      not null
+    uuid      binary(16)          not null
   );
 
   create table if not exists version
