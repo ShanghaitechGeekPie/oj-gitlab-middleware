@@ -401,7 +401,7 @@ struct AddUserToProjectGitlab {
 
 impl AddUserToProjectGitlab {
     fn new(project_id: u64, user_id: u64) -> Self {
-        // 40 is maintainer access, so users can
+        // 40 is maintainer access, so users can push
         AddUserToProjectGitlab { project_id, user_id, access_level: 40 }
     }
 }
@@ -431,8 +431,8 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     let webhook = format!("{}/hooks/{}/{}", middleware_base.0, &course_uid.original, &assignment_uid.original);
     let token = calc_token(&webhook, &*token_salt);
     gitlab_api.call(&CreateWebhookGitlab::new(repo_id, &webhook, &token))?;
-    // set all branches as protected branch
-    gitlab_api.execute_plain_body(Method::POST, &format!("projects/{}/protected_branches", repo_id), r#"{ "name" : "*" }"#, None)?;
+    // set all branches as protected branch to prevent force push
+    gitlab_api.call_no_body(Method::POST, &format!("projects/{}/protected_branches?name=*", repo_id))?;
     // setup student permission
     gitlab_api.call(&AddUserToProjectGitlab::new(repo_id, user_id))?;
     Ok(format!(r#"{{"ssh_url_to_repo":{}}}"#, repo_url))
