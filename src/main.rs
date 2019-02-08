@@ -435,7 +435,7 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     gitlab_api.call_no_body(Method::POST, &format!("projects/{}/protected_branches?name=*", repo_id))?;
     // setup student permission
     gitlab_api.call(&AddUserToProjectGitlab::new(repo_id, user_id))?;
-    Ok(format!(r#"{{"ssh_url_to_repo":{}}}"#, repo_url))
+    Ok(format!(r#"{{"ssh_url_to_repo":"{}"}}"#, repo_url))
 }
 
 struct DownloadFormat<'a>(Cow<'a, str>);
