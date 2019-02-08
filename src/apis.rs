@@ -73,7 +73,7 @@ pub trait APIAccessor {
         }?.error_for_status().map_err(|e| Error::from(e))
     }
 
-    fn execute_plain_body<T: Into<Body>>(&self, method: Method, path: &str, body: &str, sudo: Option<&str>) -> GMResult<Response> {
+    fn execute_plain_body<T: Into<Body>>(&self, method: Method, path: &str, body: T, sudo: Option<&str>) -> GMResult<Response> {
         if let Some(user) = sudo {
             self.client().request(method, self.base().join(path).expect("Invalid URL"))
                 .body(body)
