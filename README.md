@@ -102,6 +102,9 @@ Please see [documentation at oj-backend](https://github.com/ShanghaitechGeekPie/
 
 ## Inbound
 
+### Several notes
+Both course and assignment can't have display name among those listed [here](https://gitlab.com/gitlab-org/gitlab-ce/blob/master/lib/gitlab/path_regex.rb#L84-117).  
+(Case insensitive)
 ###  `/users`
 Request 
 

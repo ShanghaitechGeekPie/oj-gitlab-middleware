@@ -45,7 +45,7 @@ use reqwest::header::HeaderValue;
 
 use rocket::State;
 use rocket::fairing::AdHoc;
-use rocket::http::{ContentType, Header, RawStr, Status, uri::Origin};
+use rocket::http::{ContentType, Header, RawStr, Status};
 use rocket::request::{FromParam, FromFormValue};
 use rocket::response::Response;
 
@@ -248,7 +248,7 @@ struct CreateGroup<'a> {
 #[derive(Serialize)]
 struct CreateGroupGitlab<'a> {
     name: &'a str,
-    path: String,
+    path: &'a str,
     visibility: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     parent_id: Option<u64>,
@@ -258,7 +258,7 @@ impl<'a> From<&'a CreateGroup<'a>> for CreateGroupGitlab<'a> {
     fn from(inbound: &'a CreateGroup) -> Self {
         CreateGroupGitlab {
             name: inbound.name,
-            path: inbound.name.to_string(),
+            path: inbound.name,
             visibility: "private",
             parent_id: None,
         }
@@ -288,8 +288,8 @@ struct CreateAssignment<'a> {
 impl<'a> CreateGroupGitlab<'a> {
     fn assignment(inbound: &'a CreateAssignment<'a>, parent: u64) -> Self {
         CreateGroupGitlab {
-            name: &inbound.name,
-            path: format!("{}/{}", parent, &inbound.name),
+            name: inbound.name,
+            path: inbound.name,
             visibility: "private",
             parent_id: Some(parent),
         }
