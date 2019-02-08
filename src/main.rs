@@ -17,6 +17,8 @@
 
 #![feature(proc_macro_hygiene, decl_macro, result_map_or_else, ip)]
 
+#[macro_use]
+extern crate log;
 extern crate reqwest;
 #[macro_use]
 extern crate rocket;
@@ -498,7 +500,6 @@ fn commits<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri, page
 //================================================================================
 #[get("/healthcheck")]
 fn healthcheck<'r>(mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>, origin: &Origin<'r>/*, backend: State<BackendAPI>*/) -> Response<'r> {
-    println!("{:?}", origin.to_string());
     if !db.0.ping() {
         Response::build().status(Status::InternalServerError).sized_body(Cursor::new("db offline")).finalize()
     } else if gitlab_api.call_no_body(Method::GET, "../../-/health").is_err() {
