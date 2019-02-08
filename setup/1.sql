@@ -17,6 +17,8 @@ Copyright (c) 2019 llk89.
 
 drop procedure if exists setup_1;
 
+delimiter //
+
 create procedure setup_1()
 begin
   create table if not exists repo_ids
@@ -53,4 +55,6 @@ begin
   );
 
   insert ignore into version (id) values (0);
-end;
+end//
+
+delimiter ;
