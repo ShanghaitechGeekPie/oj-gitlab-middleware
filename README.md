@@ -212,6 +212,7 @@ Response
 
 ###  `/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/download?format=<format>`
 Possible argument for `<format>` is `tar.gz`, `tar.bz2`, `tbz`, `tbz2`, `tb2`, `bz2`, `tar`, and `zip`.
+This would return HTTP error (500 or 404) if the underlying repo is empty.
 
 Request 
 
@@ -227,7 +228,8 @@ Response
     <binary>
 
 ###  `/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/commits?page=<page>`
-page query prama should be omitted on first call.
+page query prama should be omitted on first call. 
+This would return HTTP error (500 or 404) if the underlying repo is empty.
 
 Request 
 
