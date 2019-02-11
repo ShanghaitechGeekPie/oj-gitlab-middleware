@@ -147,7 +147,7 @@ fn create_user<'a>(user: Json<CreateUser>,
         return Ok(builder.status(Status::BadRequest)
             .header(ContentType::JSON)
             .sized_body(Cursor::new(r#"{"cause":"Password too short (len<8)"}"#))
-            .finalize())
+            .finalize());
     }
     if let Ok(outbound) = CreateUserGitLab::from(&*user) {
         let response: Value = gitlab_api.call(&outbound)?.json()?;
@@ -343,7 +343,7 @@ fn add_instructor_to_course<'r>(course_uuid: Uuid, message: Json<AddInstructorTo
 
 #[derive(Deserialize)]
 struct CreateRepo<'a> {
-    owner_email: &'a str,
+    owners: Vec<&'a str>,
     repo_name: &'a str,
 }
 
@@ -418,10 +418,19 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
                mut db: DBAccess, gitlab_api: State<GitLabAPI>)
                -> GMResult<String> {
     if db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &message.repo_name).is_ok() {
-        return Err(Error::AlreadyExists)
+        return Err(Error::AlreadyExists);
     }
     let assignment_id = db.translate_uuid(&assignment_uid.parsed)?;
-    let user_id = db.translate_uid(message.owner_email)?;
+    let owners: Vec<u64> = {
+        let mut ret: Vec<u64> = Vec::with_capacity(message.owners.len());
+
+        for owner in &message.owners {
+            ret.push(db.translate_uid(owner)?);
+        }
+
+        ret
+    };
+
     // create repo
     let response: Value = gitlab_api.call(&CreateRepoGitlab::new(message.repo_name, assignment_id))?.json()?;
     let repo_id = response["id"].as_u64().expect("Gitlab schema changed");
@@ -434,7 +443,9 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     // set all branches as protected branch to prevent force push
     gitlab_api.call_no_body(Method::POST, &format!("projects/{}/protected_branches?name=*", repo_id))?;
     // setup student permission
-    gitlab_api.call(&AddUserToProjectGitlab::new(repo_id, user_id))?;
+    for owner in owners {
+        gitlab_api.call(&AddUserToProjectGitlab::new(repo_id, owner))?;
+    }
     Ok(format!(r#"{{"ssh_url_to_repo":"{}"}}"#, repo_url))
 }
 

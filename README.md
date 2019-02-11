@@ -202,7 +202,7 @@ Request
 
     POST /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000000/repos
     {
-        "owner_email": "wangdch@shanghaitech.edu.cn",
+        "owners": ["wangdch@shanghaitech.edu.cn"],
         "repo_name": "wangdch",
     }
 

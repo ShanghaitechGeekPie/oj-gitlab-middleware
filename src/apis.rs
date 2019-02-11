@@ -21,7 +21,7 @@ use std::convert::From;
 
 use ::{Error, GMResult};
 
-use reqwest::{Body, Client, ClientBuilder, Method, RequestBuilder, Response};
+use reqwest::{Client, ClientBuilder, Method, Response};
 use reqwest::header::{HeaderMap, HeaderValue};
 use url::Url;
 
