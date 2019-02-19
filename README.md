@@ -208,7 +208,10 @@ Request
 
 Response
 
-    HTTP 202 Created 
+    HTTP 200 OK
+    {
+        "ssh_url_to_repo": "git@example.com:foo/bar/wangdch"
+    }
 
 ###  `/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/download?format=<format>`
 Possible argument for `<format>` is `tar.gz`, `tar.bz2`, `tbz`, `tbz2`, `tb2`, `bz2`, `tar`, and `zip`.
