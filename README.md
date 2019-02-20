@@ -198,20 +198,19 @@ Response
     HTTP 202 Created 
 
 ###  `/courses/<course_uid>/assignments/<assignment_uid>/repos`
+`additional_data` field is optional.
 Request 
 
     POST /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000000/repos
     {
         "owners": ["wangdch@shanghaitech.edu.cn"],
         "repo_name": "wangdch",
+        "additional_data": "lolwhatsthis"
     }
 
 Response
 
-    HTTP 200 OK
-    {
-        "ssh_url_to_repo": "git@example.com:foo/bar/wangdch"
-    }
+    HTTP 202 Created 
 
 ###  `/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/download?format=<format>`
 Possible argument for `<format>` is `tar.gz`, `tar.bz2`, `tbz`, `tbz2`, `tb2`, `bz2`, `tar`, and `zip`.

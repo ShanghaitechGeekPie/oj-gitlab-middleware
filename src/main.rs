@@ -84,6 +84,8 @@ struct ForwardedWebHookRequest<'a> {
     course_uid: &'a str,
     assignment_uid: &'a str,
     upstream: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    additional_data: Option<String>,
 }
 
 impl<'a> APIFunction for ForwardedWebHookRequest<'a> {
@@ -92,14 +94,14 @@ impl<'a> APIFunction for ForwardedWebHookRequest<'a> {
     }
 }
 
-#[post("/hooks/<course>/<assignment>", data = "<message>")]
-fn webhook(course: Uuid, assignment: Uuid, message: Json<JsonValue>,
+#[post("/hooks/<course>/<assignment>?<data>", data = "<message>")]
+fn webhook(course: Uuid, assignment: Uuid, message: Json<JsonValue>, data: Option<String>,
            _event: Push,
            backend: State<BackendAPI>)
            -> GMResult<()> {
     let upstream = message["project"]["git_ssh_url"].as_str().expect("Schema changed");
-
-    backend.call(&ForwardedWebHookRequest { course_uid: &course.original, assignment_uid: &assignment.original, upstream })?.error_for_status()?;
+    let request = ForwardedWebHookRequest { course_uid: &course.original, assignment_uid: &assignment.original, upstream, additional_data: data };
+    backend.call(&request)?.error_for_status()?;
     Ok(())
 }
 
@@ -345,6 +347,7 @@ fn add_instructor_to_course<'r>(course_uuid: Uuid, message: Json<AddInstructorTo
 struct CreateRepo<'a> {
     owners: Vec<&'a str>,
     repo_name: &'a str,
+    additional_data: Option<&'a str>,
 }
 
 #[derive(Serialize, Clone, Copy, Debug, Eq, PartialEq)]
@@ -437,7 +440,12 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     let repo_url = response["ssh_url_to_repo"].as_str().expect("Gitlab schema changed");
     db.remember_repo_id(&course_uid.parsed, &assignment_uid.parsed, message.repo_name, repo_id)?;
     // setup webhook
-    let webhook = format!("{}/hooks/{}/{}", middleware_base.0, &course_uid.original, &assignment_uid.original);
+    let webhook = if let Some(d) = message.additional_data {
+        let data = ::percent_encoding::percent_encode(d.as_bytes(), percent_encoding::QUERY_ENCODE_SET);
+        format!("{}/hooks/{}/{}?data={}", middleware_base.0, &course_uid.original, &assignment_uid.original, data)
+    } else {
+        format!("{}/hooks/{}/{}", middleware_base.0, &course_uid.original, &assignment_uid.original)
+    };
     let token = calc_token(&webhook, &*token_salt);
     gitlab_api.call(&CreateWebhookGitlab::new(repo_id, &webhook, &token))?;
     // set all branches as protected branch to prevent force push
