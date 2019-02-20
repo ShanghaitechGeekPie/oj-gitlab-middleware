@@ -67,6 +67,7 @@ impl From<HTTPError> for Error {
 
 impl<'r> Responder<'r> for Error {
     fn respond_to(self, _: &Request) -> Result<Response<'r>, Status> {
+        warn!("Caught error: {:?}", self);
         match self {
             Error::AlreadyExists => Err(Status::Conflict),
             Error::NotFound => Err(Status::NotFound),
