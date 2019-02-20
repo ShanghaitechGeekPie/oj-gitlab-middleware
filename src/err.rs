@@ -18,24 +18,30 @@
 
 use mysql::Error as MySQLError;
 use reqwest::Error as HTTPError;
-use serde_json::Error as JSONError;
-use std::str::Utf8Error;
-use uuid::parser::ParseError;
+use serde_json::error::Error as JSONError;
+
+use rocket::{Request, Response};
+use rocket::http::Status;
+use rocket::response::Responder;
+use std::io::Cursor;
 
 #[derive(Debug)]
 pub enum Error {
     MySQLError(MySQLError),
     HTTPError(HTTPError),
     JSONError(JSONError),
-    Utf8Error(Utf8Error),
-    UuidError(ParseError),
     AlreadyExists,
+    NotFound,
+    UpstreamError(u16, String),
     SomeError(&'static str),
 }
 
 pub type GMResult<T> = Result<T, Error>;
 
 impl Error {
+    pub fn upstream(code: u16, reason: String) -> Error {
+        Error::UpstreamError(code, reason)
+    }
     pub fn new(reason: &'static str) -> Error {
         Error::SomeError(reason)
     }
@@ -59,14 +65,16 @@ impl From<HTTPError> for Error {
     }
 }
 
-impl From<Utf8Error> for Error {
-    fn from(exception: Utf8Error) -> Self {
-        Error::Utf8Error(exception)
-    }
-}
-
-impl From<ParseError> for Error {
-    fn from(exception: ParseError) -> Self {
-        Error::UuidError(exception)
+impl<'r> Responder<'r> for Error {
+    fn respond_to(self, _: &Request) -> Result<Response<'r>, Status> {
+        match self {
+            Error::AlreadyExists => Err(Status::Conflict),
+            Error::NotFound => Err(Status::NotFound),
+            Error::UpstreamError(code, message) => Ok(Response::build()
+                .status(Status::from_code(code).unwrap_or(Status::InternalServerError))
+                .sized_body(Cursor::new(message))
+                .finalize()),
+            _ => Err(Status::InternalServerError)
+        }
     }
 }

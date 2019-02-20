@@ -73,8 +73,8 @@ impl<'a> FromParam<'a> for Uuid<'a> {
     type Error = Error;
 
     fn from_param(param: &'a RawStr) -> Result<Self, Self::Error> {
-        let decoded = param.percent_decode()?;
-        let parsed = UuidRaw::parse_str(&decoded)?;
+        let decoded = param.percent_decode().map_err(|_| Error::NotFound)?;
+        let parsed = UuidRaw::parse_str(&decoded).map_err(|_| Error::NotFound)?;
         Ok(Uuid { parsed, original: decoded })
     }
 }
@@ -225,20 +225,11 @@ impl<'a> FromFormValue<'a> for StrInUri<'a> {
 fn update_key(user_email: StrInUri, message: Json<UpdateKey>,
               mut db: DBAccess, gitlab_api: State<GitLabAPI>)
               -> GMResult<Status> {
-    match db.translate_uid(&user_email) {
-        Ok(id) => {
-            gitlab_api.remove_keys(id)?;
-            gitlab_api.call(&AddKeyGitlab::new(id, &message.key))?;
+    let id = db.translate_uid(&user_email)?;
+    gitlab_api.remove_keys(id)?;
+    gitlab_api.call(&AddKeyGitlab::new(id, &message.key))?;
 
-            Ok(Status::Ok)
-        }
-        Err(e) =>
-            if let Error::SomeError("No such user") = e {
-                Ok(Status::NotFound)
-            } else {
-                Err(e)
-            }
-    }
+    Ok(Status::Ok)
 }
 
 #[derive(Deserialize)]
@@ -480,10 +471,10 @@ impl<'a> FromFormValue<'a> for DownloadFormat<'a> {
 }
 
 #[get("/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/download?<format>")]
-fn download_repo<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: &RawStr, format: DownloadFormat,
+fn download_repo<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri, format: DownloadFormat,
                      mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>)
                      -> GMResult<Response<'r>> {
-    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &repo_name.percent_decode()?)?;
+    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &repo_name)?;
     let response = gitlab_api.call_no_body(Method::GET, &format!("projects/{}/repository/archive.{}", repo_id, &*format))?;
     let mut ret = Response::build();
     {
@@ -501,10 +492,10 @@ fn download_repo<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: &RawStr,
 }
 
 #[get("/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/commits?<page>")]
-fn commits<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: &RawStr, page: Option<StrInUri>,
+fn commits<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri, page: Option<StrInUri>,
                mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>)
                -> GMResult<Response<'r>> {
-    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &repo_name.percent_decode()?)?;
+    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &repo_name)?;
     let response = if let Some(next_page) = page {
         gitlab_api.call_no_body(Method::GET, &next_page)
     } else {
@@ -527,7 +518,8 @@ fn commits<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: &RawStr, page:
 
 //================================================================================
 #[get("/healthcheck")]
-fn healthcheck<'r>(mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>/*, backend: State<BackendAPI>*/) -> Response<'r> {
+fn healthcheck(mut db: DBAccess, gitlab_api: State<GitLabAPI>/*, backend: State<BackendAPI>*/) -> Response {
+//fn healthcheck<'r>(mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>, backend: State<BackendAPI>) -> Response<'r> {
     if !db.0.ping() {
         Response::build().status(Status::InternalServerError).sized_body(Cursor::new("db offline")).finalize()
     } else if gitlab_api.call_no_body(Method::GET, "../../-/health").is_err() {
@@ -544,7 +536,7 @@ struct DBAccess(mysql::Conn);
 impl DBAccess {
     fn translate_uid(&mut self, username: &str) -> GMResult<u64> {
         self.0.first_exec(r"SELECT uid FROM uid WHERE username=?", (&*username, ))
-            ?.ok_or(Error::new("No such user"))
+            ?.ok_or(Error::NotFound)
     }
 
     fn remember_uid(&mut self, username: &str, id: u64) -> GMResult<()> {
@@ -555,7 +547,7 @@ impl DBAccess {
 
     fn translate_uuid(&mut self, uuid: &UuidRaw) -> GMResult<u64> {
         self.0.first_exec(r"SELECT gitlab_id FROM uuids WHERE uuid=?", (uuid, ))
-            ?.ok_or(Error::new("No such UUID"))
+            ?.ok_or(Error::NotFound)
     }
 
     fn remember_uuid(&mut self, uuid: &UuidRaw, id: u64) -> GMResult<()> {
@@ -566,7 +558,7 @@ impl DBAccess {
 
     fn translate_repo_id(&mut self, course_uid: &UuidRaw, assignment_uid: &UuidRaw, name: &str) -> GMResult<u64> {
         self.0.first_exec(r"SELECT repo_id FROM repo_ids WHERE course_uid=? AND assignment_uid=? AND name=? ", (course_uid, assignment_uid, name))
-            ?.ok_or(Error::new("No such repo"))
+            ?.ok_or(Error::NotFound)
     }
 
     fn remember_repo_id(&mut self, course_uid: &UuidRaw, assignment_uid: &UuidRaw, name: &str, id: u64) -> GMResult<()> {

@@ -33,6 +33,7 @@ use serde::Serialize;
 
 use hex::encode;
 use sha2::{Digest, Sha512};
+use serde_json::Value;
 
 pub trait APIFunction: Serialize {
     fn method() -> Method { Method::POST }
@@ -61,7 +62,7 @@ pub trait APIAccessor {
     }
 
     fn execute<T: Serialize + ?Sized>(&self, method: Method, path: &str, body: &T, sudo: Option<&str>) -> GMResult<Response> {
-        if let Some(user) = sudo {
+        let mut res = if let Some(user) = sudo {
             self.client().request(method, self.base().join(path).expect("Invalid URL"))
                 .json(body)
                 .header("sudo", user)
@@ -70,7 +71,18 @@ pub trait APIAccessor {
             self.client().request(method, self.base().join(path).expect("Invalid URL"))
                 .json(body)
                 .send()
-        }?.error_for_status().map_err(|e| Error::from(e))
+        }?;
+
+        if res.status().is_server_error() | res.status().is_client_error() {
+            if let Ok(body) = res.json::<Value>() {
+                if let Some(json) = body.get("message") {
+                    if json.is_string() {
+                        return Err(Error::upstream(res.status().as_u16(), json.as_str().unwrap().to_string()))
+                    }
+                }
+            }
+        }
+        res.error_for_status().map_err(Error::from)
     }
 
     fn client(&self) -> &Client;
@@ -100,7 +112,7 @@ impl GitLabAPI {
         let body = res.text()?;
 
         if body.is_empty() {
-            Err(Error::new("Not found"))
+            Err(Error::NotFound)
         } else {
             Ok(serde_json::from_str::<serde_json::Value>(&body)?[0]["id"].as_u64().expect("Schema changed."))
         }
