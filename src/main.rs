@@ -338,6 +338,7 @@ fn add_instructor_to_course<'r>(course_uuid: Uuid, message: Json<AddInstructorTo
 struct CreateRepo<'a> {
     owners: Vec<&'a str>,
     repo_name: &'a str,
+    ddl: &'a str,
     additional_data: Option<&'a str>,
 }
 
@@ -386,21 +387,22 @@ impl<'a> APIFunction for CreateWebhookGitlab<'a> {
 }
 
 #[derive(Serialize)]
-struct AddUserToProjectGitlab {
+struct AddUserToProjectGitlab<'a> {
     #[serde(skip)]
     project_id: u64,
     user_id: u64,
     access_level: u8,
+    expires_at: &'a str
 }
 
-impl AddUserToProjectGitlab {
-    fn new(project_id: u64, user_id: u64) -> Self {
+impl<'a> AddUserToProjectGitlab<'a> {
+    fn new(project_id: u64, user_id: u64, expires_at: &'a str) -> Self {
         // 40 is maintainer access, so users can push
-        AddUserToProjectGitlab { project_id, user_id, access_level: 40 }
+        AddUserToProjectGitlab { project_id, user_id, access_level: 40, expires_at }
     }
 }
 
-impl APIFunction for AddUserToProjectGitlab {
+impl<'a> APIFunction for AddUserToProjectGitlab<'a> {
     fn path(&self) -> Cow<str> {
         Cow::Owned(format!("projects/{}/members", self.project_id))
     }
@@ -443,7 +445,7 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     gitlab_api.call_no_body(Method::POST, &format!("projects/{}/protected_branches?name=*", repo_id))?;
     // setup student permission
     for owner in owners {
-        gitlab_api.call(&AddUserToProjectGitlab::new(repo_id, owner))?;
+        gitlab_api.call(&AddUserToProjectGitlab::new(repo_id, owner, message.ddl))?;
     }
     Ok(format!(r#"{{"ssh_url_to_repo":"{}"}}"#, repo_url))
 }
