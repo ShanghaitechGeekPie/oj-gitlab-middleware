@@ -147,9 +147,12 @@ pub struct BackendAPI {
 }
 
 impl BackendAPI {
-    pub fn new(base_url: Url) -> BackendAPI {
+    pub fn new(base_url: Url, token: &str) -> BackendAPI {
+        let mut default_header = HeaderMap::new();
+        default_header.insert("Authorization", HeaderValue::from_str(token).expect("Token malformed"));
         BackendAPI {
             client: ClientBuilder::new()
+                .default_headers(default_header)
                 .build().expect("What?"),
             _base_url: base_url,
         }

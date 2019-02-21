@@ -28,9 +28,8 @@ Here is an exhaustive list of configuration that this middleware accepts. Unknow
 config name|description|required
 ---|---|---
 `backend_url`|A middleware visible url pointing towards the backend.|true
-`middleware_base`|A gitlab visible url pointing towards the middleware. 
-This must not be something like `http://middleware:8000`. 
-It must be  `http://middleware.localnetwork:8000` or something.|true
+`backend_auth_header`|The value of header `Authorization` that will be sent to backend|true
+`middleware_base`|A gitlab visible url pointing towards the middleware. This must not be something like `http://middleware:8000`. It must be  `http://middleware.localnetwork:8000` or something.|true
 `gitlab_auth_token`|The access token of gitlab server.|true
 `gitlab_base_url`|A middleware visible url pointing towards the gitlab.|true
 `gitlab_domain`|The domain of ip of inbound gitlab webhook.|false

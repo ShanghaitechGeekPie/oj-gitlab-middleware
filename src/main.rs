@@ -581,7 +581,8 @@ fn main() {
                 "" => panic!("backend_url scheme not specified"),
                 _ => panic!("backend_url scheme not supported (only http/https)"),
             }
-            let backend = BackendAPI::new(url);
+            let c = r.config().get_string("backend_auth_header").expect("backend_auth_header not set");
+            let backend = BackendAPI::new(url, &c);
             Ok(r.manage(backend))
         }))
         .attach(AdHoc::on_attach("GitlabAPI", |r| {
