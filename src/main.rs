@@ -344,7 +344,7 @@ struct CreateRepo<'a> {
     repo_name: &'a str,
     ddl: &'a str,
     #[serde(default)]
-    additional_data: Option<&'a str>,
+    additional_data: Option<Cow<'a, str>>,
 }
 
 #[derive(Serialize, Clone, Copy, Debug, Eq, PartialEq)]
@@ -438,7 +438,7 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     let repo_url = response["ssh_url_to_repo"].as_str().expect("Gitlab schema changed");
     db.remember_repo_id(&course_uid.parsed, &assignment_uid.parsed, message.repo_name, repo_id)?;
     // setup webhook
-    let webhook = if let Some(d) = message.additional_data {
+    let webhook = if let Some(d) = &message.additional_data {
         let data = ::percent_encoding::percent_encode(d.as_bytes(), percent_encoding::QUERY_ENCODE_SET);
         format!("{}/hooks/{}/{}?data={}", middleware_base.0, &course_uid.original, &assignment_uid.original, data)
     } else {
