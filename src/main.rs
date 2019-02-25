@@ -122,12 +122,16 @@ struct CreateUserGitLab<'a> {
 impl<'a> CreateUserGitLab<'a> {
     fn from(inbound: &'a CreateUser<'a>) -> Result<Self, ()> {
         if let Some(at_pos) = inbound.email.find('@') {
-            Ok(CreateUserGitLab {
-                email: inbound.email,
-                username: &inbound.email[0..at_pos],
-                password: inbound.password,
-                name: &inbound.email[0..at_pos],
-            })
+            if &inbound.email[0..at_pos] == "admin" {
+                Err(())
+            } else {
+                Ok(CreateUserGitLab {
+                    email: inbound.email,
+                    username: &inbound.email[0..at_pos],
+                    password: inbound.password,
+                    name: &inbound.email[0..at_pos],
+                })
+            }
         } else {
             Err(())
         }
@@ -339,6 +343,7 @@ struct CreateRepo<'a> {
     owners: Vec<&'a str>,
     repo_name: &'a str,
     ddl: &'a str,
+    #[serde(default)]
     additional_data: Option<&'a str>,
 }
 
@@ -392,7 +397,7 @@ struct AddUserToProjectGitlab<'a> {
     project_id: u64,
     user_id: u64,
     access_level: u8,
-    expires_at: &'a str
+    expires_at: &'a str,
 }
 
 impl<'a> AddUserToProjectGitlab<'a> {
