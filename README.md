@@ -108,6 +108,9 @@ Please see [documentation at oj-backend](https://github.com/ShanghaitechGeekPie/
 ### Several notes
 Both course and assignment can't have display name among those listed [here](https://gitlab.com/gitlab-org/gitlab-ce/blob/master/lib/gitlab/path_regex.rb#L84-117).  
 (Case insensitive)
+
+Unless explicitly stated, all string fields **can't** have escape sequence in it. Otherwise it would become http 422! 
+
 ###  `/users`
 Request 
 
@@ -197,7 +200,7 @@ Response
     HTTP 202 Created 
 
 ###  `/courses/<course_uid>/assignments/<assignment_uid>/repos`
-`additional_data` field is optional.
+`additional_data` field is optional. It may contains escape sequence.
 Request 
 
     POST /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000000/repos
