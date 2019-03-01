@@ -20,6 +20,7 @@ drop procedure if exists setup_1;
 delimiter //
 
 create procedure setup_1()
+  modifies sql data
 begin
   create table if not exists repo_ids
   (
