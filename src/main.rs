@@ -289,6 +289,8 @@ fn delete_course(course_uid: Uuid,
 
     gitlab_api.call_no_body(Method::DELETE, &format!("groups/{}", course_id))?;
 
+    db.forget_uuid_by_id(course_id)?;
+
     Ok(())
 }
 
