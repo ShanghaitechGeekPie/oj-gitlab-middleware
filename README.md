@@ -174,6 +174,19 @@ Response
 
     HTTP 202 Created
 
+###  `/courses/<course_uid>`
+This will delete the given course no matter what.
+
+All its associated assignments, repos, other metadata will be removed.
+
+Request 
+
+    DELETE /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000000
+
+Response
+
+    HTTP 200 OK
+
 ###  `/courses/<course_uid>/instructors`
 Request 
 
@@ -199,6 +212,19 @@ Response
 
     HTTP 202 Created 
 
+###  `/courses/<course_uid>/assignments/<assignment_uid>`
+This will delete the given assignment no matter what. 
+
+All its associated repo will be removed.
+
+Request 
+
+    DELETE /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000000
+
+Response
+
+    HTTP 200 OK
+
 ###  `/courses/<course_uid>/assignments/<assignment_uid>/repos`
 `additional_data` field is optional. It may contains escape sequence.
 Request 
@@ -214,6 +240,17 @@ Request
 Response
 
     HTTP 202 Created 
+
+###  `/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>`
+This will delete the given repo no matter what. 
+
+Request 
+
+    DELETE /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000000/repos/wangdch
+
+Response
+
+    HTTP 200 OK
 
 ###  `/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>/download?format=<format>`
 Possible argument for `<format>` is `tar.gz`, `tar.bz2`, `tbz`, `tbz2`, `tb2`, `bz2`, `tar`, and `zip`.

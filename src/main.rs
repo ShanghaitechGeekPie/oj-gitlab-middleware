@@ -276,6 +276,22 @@ fn create_course(message: Json<CreateGroup>,
     db.remember_uuid(&message.uuid, r["id"].as_u64().expect("Gitlab schema changed")).map(|_| Status::Created)
 }
 
+#[delete("/courses/<course_uid>")]
+fn delete_course(course_uid: Uuid,
+                 mut db: DBAccess, gitlab_api: State<GitLabAPI>) -> GMResult<()> {
+    let course_id = db.translate_uuid(&course_uid.parsed)?;
+
+    let res: JsonValue = gitlab_api.call_no_body(Method::GET, &format!("groups/{}/subgroups", course_id))?.json()?;
+
+    for assignment in res.as_array().expect("Gitlab schema changed") {
+        db.forget_uuid_by_id(assignment["id"].as_u64().expect("Gitlab schema changed"))?;
+    }
+
+    gitlab_api.call_no_body(Method::DELETE, &format!("groups/{}", course_id))?;
+
+    Ok(())
+}
+
 #[derive(Deserialize)]
 struct CreateAssignment<'a> {
     name: &'a str,
@@ -301,6 +317,18 @@ fn create_assignment(parent_uid: Uuid, message: Json<CreateAssignment>,
     let response: Value = gitlab_api.call(&CreateGroupGitlab::assignment(&*message, parent_id))?.json()?;
     db.remember_uuid(&message.uuid, response["id"].as_u64().expect("Gitlab schema changed"))
         .map(|_| Status::Created)
+}
+
+#[delete("/courses/<_course_uid>/assignments/<assignment_uid>")]
+fn delete_assignment(_course_uid: Uuid, assignment_uid: Uuid,
+                     mut db: DBAccess, gitlab_api: State<GitLabAPI>) -> GMResult<()> {
+    let assignment_id = db.translate_uuid(&assignment_uid.parsed)?;
+
+    gitlab_api.call_no_body(Method::DELETE, &format!("groups/{}", assignment_id))?;
+
+    db.forget_uuid_by_id(assignment_id)?;
+
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -455,6 +483,18 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     Ok(format!(r#"{{"ssh_url_to_repo":"{}"}}"#, repo_url))
 }
 
+#[delete("/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>")]
+fn delete_repo(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri,
+               mut db: DBAccess, gitlab_api: State<GitLabAPI>) -> GMResult<()> {
+    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &repo_name)?;
+
+    gitlab_api.call_no_body(Method::DELETE, &format!("projects/{}", repo_id))?;
+
+    db.forget_repo_id(repo_id)?;
+
+    Ok(())
+}
+
 struct DownloadFormat<'a>(Cow<'a, str>);
 
 impl<'a> Deref for DownloadFormat<'a> {
@@ -563,13 +603,25 @@ impl DBAccess {
         Ok(())
     }
 
+    fn forget_uuid_by_id(&mut self, id: u64) -> GMResult<()> {
+        self.0.prep_exec(r"DELETE FROM uuids WHERE gitlab_id=?", (id, ))?;
+
+        Ok(())
+    }
+
     fn translate_repo_id(&mut self, course_uid: &UuidRaw, assignment_uid: &UuidRaw, name: &str) -> GMResult<u64> {
-        self.0.first_exec(r"SELECT repo_id FROM repo_ids WHERE course_uid=? AND assignment_uid=? AND name=? ", (course_uid, assignment_uid, name))
+        self.0.first_exec(r"SELECT repo_id FROM repo_ids WHERE course_uid=? AND assignment_uid=? AND name=?", (course_uid, assignment_uid, name))
             ?.ok_or(Error::NotFound)
     }
 
     fn remember_repo_id(&mut self, course_uid: &UuidRaw, assignment_uid: &UuidRaw, name: &str, id: u64) -> GMResult<()> {
         self.0.prep_exec(r"INSERT INTO repo_ids(repo_id, course_uid, assignment_uid, name) VALUES (?, ?, ?, ?)", (id, course_uid, assignment_uid, name))?;
+
+        Ok(())
+    }
+
+    fn forget_repo_id(&mut self, id: u64) -> GMResult<()> {
+        self.0.prep_exec(r"DELETE FROM repo_ids WHERE repo_id=?", (id, ))?;
 
         Ok(())
     }
