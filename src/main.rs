@@ -680,7 +680,8 @@ fn main() {
         }))
         .mount("/", routes![
             webhook,create_user,update_key,create_course,create_assignment,
-            add_instructor_to_course,create_repo,download_repo,healthcheck,commits
+            add_instructor_to_course,create_repo,download_repo,healthcheck,commits,
+            delete_course, delete_assignment, delete_repo
         ])
         .launch();
 }
