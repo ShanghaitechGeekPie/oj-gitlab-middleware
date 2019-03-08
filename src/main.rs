@@ -96,8 +96,8 @@ impl<'a> APIFunction for ForwardedWebHookRequest<'a> {
     }
 }
 
-#[post("/hooks/<course>/<assignment>?<data>", data = "<message>")]
-fn webhook(course: Uuid, assignment: Uuid, message: Json<JsonValue>, data: Option<String>,
+#[post("/hooks/<_course>/<assignment>?<data>", data = "<message>")]
+fn webhook(_course: Uuid, assignment: Uuid, message: Json<JsonValue>, data: Option<String>,
            _event: Push,
            backend: State<BackendAPI>)
            -> GMResult<()> {
