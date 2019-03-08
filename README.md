@@ -34,6 +34,7 @@ config name|description|required
 `gitlab_base_url`|A middleware visible url pointing towards the gitlab.|true
 `gitlab_domain`|The domain of ip of inbound gitlab webhook.|false
 `gitlab_webhook_token_salt`|A salt used to enhance security. A default value will be used if not provided|false
+`safe_network`|Under a safe network you may wish to disable some checks, which involves sha512 hashing that could be expensive if a huge additional data is passed in. Defaults to false|false
 
 A mysql DB needs to be set up too. The name should be `mysql` while the exact format is available [here](https://rocket.rs/v0.4/guide/state/#usage).
 

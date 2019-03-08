@@ -460,7 +460,7 @@ impl<'a> APIFunction for AddUserToProjectGitlab<'a> {
 
 #[post("/courses/<course_uid>/assignments/<assignment_uid>/repos", data = "<message>")]
 fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>,
-               token_salt: State<TokenSalt>, middleware_base: State<MiddlewareBase>,
+               token_salt: State<TokenSalt>, middleware_base: State<MiddlewareBase>, safe_network: State<SafeNetwork>,
                mut db: DBAccess, gitlab_api: State<GitLabAPI>)
                -> GMResult<String> {
     if db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &message.repo_name).is_ok() {
@@ -495,7 +495,7 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     } else {
         format!("/hooks/{}/{}", &course_uid.original, &assignment_uid.original)
     };
-    let token = calc_token(&webhook, &*token_salt);
+    let token = if safe_network.0 { String::new() } else { calc_token(&webhook, &*token_salt) };
     webhook.insert_str(0, &middleware_base.0);
     gitlab_api.call(&CreateWebhookGitlab::new(repo_id, &webhook, &token))?;
     trace!("Webhook for {} created as {}", repo_url, &webhook);
@@ -659,6 +659,8 @@ impl DBAccess {
 
 struct MiddlewareBase(String);
 
+struct SafeNetwork(bool);
+
 fn main() {
     log4rs::init_file("log4rs.yml", Default::default()).unwrap();
 
@@ -684,6 +686,10 @@ fn main() {
                 GitLabAPI::new(token, base_url)
             };
             Ok(r.manage(api))
+        }))
+        .attach(AdHoc::on_attach("SafeNetworkRetriever", |r| {
+            let token = r.config().get_bool("safe_network").unwrap_or(false);
+            Ok(r.manage(SafeNetwork(token)))
         }))
         .attach(AdHoc::on_attach("TokenSaltRetriever", |r| {
             let token = r.config().get_string("gitlab_webhook_token_salt").unwrap_or("CAFEDEAD".to_string());

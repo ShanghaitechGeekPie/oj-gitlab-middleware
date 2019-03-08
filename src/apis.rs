@@ -19,7 +19,7 @@ use std::borrow::Cow;
 use std::net::IpAddr;
 use std::convert::From;
 
-use ::{Error, GMResult};
+use ::{Error, GMResult, SafeNetwork};
 
 use reqwest::{Client, ClientBuilder, Method, Response};
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -202,24 +202,28 @@ macro_rules! gitlab_event {
         impl<'a,'r> $clz {
             fn from_request0(request: &'a Request<'r>) -> request::Outcome<Self, &'static str> {
                 // Rocket's implementation of guard isn't quite friendly...
-                if let Outcome::Success(s) = request.guard::<State<Domain>>() {
-                    if let Some(ref domains) = s.0 {
-                        if let Some(ip) = request.client_ip() {
-                            if !domains.iter().any(|d| is_ip_same(d, &ip)) {
-                                info!("Blocked access from un-whitelisted server");
-                                return Outcome::Failure((Status::Forbidden, "IP not whitelisted"))
+                if let Outcome::Success(s) = request.guard::<State<SafeNetwork>>() {
+                    if !s.0 {
+                        if let Outcome::Success(s) = request.guard::<State<Domain>>() {
+                            if let Some(ref domains) = s.0 {
+                                if let Some(ip) = request.client_ip() {
+                                    if !domains.iter().any(|d| is_ip_same(d, &ip)) {
+                                        info!("Blocked access from un-whitelisted server");
+                                        return Outcome::Failure((Status::Forbidden, "IP not whitelisted"))
+                                    }
+                                } else {
+                                    info!("Blocked access from unknown server");
+                                    return Outcome::Failure((Status::Forbidden, "IP not whitelisted"))
+                                }
                             }
-                        } else {
-                            info!("Blocked access from unknown server");
-                            return Outcome::Failure((Status::Forbidden, "IP not whitelisted"))
                         }
-                    }
-                }
-                if let Outcome::Success(s) = request.guard::<State<TokenSalt>>() {
-                    let token = calc_token(&request.uri().to_string(), &*s);
-                    if !request.headers().get("x-gitlab-token").any(|t| t==token) {
-                        info!("Blocked access with bad token");
-                        return Outcome::Failure((Status::Forbidden, "Require valid token"))
+                        if let Outcome::Success(s) = request.guard::<State<TokenSalt>>() {
+                            let token = calc_token(&request.uri().to_string(), &*s);
+                            if !request.headers().get("x-gitlab-token").any(|t| t==token) {
+                                info!("Blocked access with bad token");
+                                return Outcome::Failure((Status::Forbidden, "Require valid token"))
+                            }
+                        }
                     }
                 }
                 let name: Vec<_> = request.headers().get("x-gitlab-event").collect();
