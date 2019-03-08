@@ -9,6 +9,8 @@ appenders:
 
 # Set the default logging level to "warn" and attach the "stdout" appender to the root
 root:
-  level: info
+  # This will be replaced with a real log level from environment variable at entry-point.sh
+  # default to info
+  level: @LOG_LEVEL@
   appenders:
     - stdout
