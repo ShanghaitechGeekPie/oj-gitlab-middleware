@@ -19,6 +19,7 @@
 
 #[macro_use]
 extern crate log;
+extern crate log4rs;
 extern crate reqwest;
 #[macro_use]
 extern crate rocket;
@@ -63,6 +64,9 @@ mod err;
 
 use apis::*;
 use err::*;
+use log4rs::config::Config as LogConfig;
+use log::Log;
+use log4rs::config::Root;
 
 struct Uuid<'a> {
     parsed: UuidRaw,
@@ -633,6 +637,8 @@ impl DBAccess {
 struct MiddlewareBase(String);
 
 fn main() {
+    log4rs::init_file("log4rs.yml", Default::default()).unwrap();
+
     rocket::ignite()
         .attach(DBAccess::fairing())
         .attach(AdHoc::on_attach("BackendAPI", |r| {
