@@ -469,7 +469,7 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     db.remember_repo_id(&course_uid.parsed, &assignment_uid.parsed, message.repo_name, repo_id)?;
     // setup webhook
     let mut webhook = if let Some(d) = &message.additional_data {
-        let data = ::percent_encoding::percent_encode(d.as_bytes(), percent_encoding::QUERY_ENCODE_SET);
+        let data = ::percent_encoding::percent_encode(d.as_bytes(), percent_encoding::USERINFO_ENCODE_SET);
         format!("/hooks/{}/{}?data={}", &course_uid.original, &assignment_uid.original, data)
     } else {
         format!("/hooks/{}/{}", &course_uid.original, &assignment_uid.original)
