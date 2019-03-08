@@ -100,6 +100,7 @@ fn webhook(course: Uuid, assignment: Uuid, message: Json<JsonValue>, data: Optio
            _event: Push,
            backend: State<BackendAPI>)
            -> GMResult<()> {
+    trace!("Forwarding webhook");
     let upstream = message["project"]["git_ssh_url"].as_str().expect("Schema changed");
     let request = ForwardedWebHookRequest { course_uid: &course.original, assignment_uid: &assignment.original, upstream, additional_data: data };
     backend.call(&request)?.error_for_status()?;
@@ -723,4 +724,15 @@ fn main() {
             delete_course, delete_assignment, delete_repo
         ])
         .launch();
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test() {
+        println!("{:?}", "".to_socket_addrs().map(|addrs| addrs.map(|sa| sa.ip()).collect()).unwrap_or(Vec::new()));
+        println!("{}", calc_token("/hooks/9e013cc8-3cb1-11e9-b8c1-029eb8fed818/eb01fe80-3cb7-11e9-ab54-029eb8fed818?data=%5B%5B%22d7a2b7a8-3bea-11e9-9b7d-029eb8a3a160%22%5D%5D", "CAFEDEAD"));
+    }
 }
