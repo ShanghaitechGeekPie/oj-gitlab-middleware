@@ -82,7 +82,8 @@ impl<'a> FromParam<'a> for Uuid<'a> {
 
 #[derive(Serialize)]
 struct ForwardedWebHookRequest<'a> {
-    course_uid: &'a str,
+    // Backend doesn't need this
+    // course_uid: &'a str,
     assignment_uid: &'a str,
     upstream: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -91,7 +92,7 @@ struct ForwardedWebHookRequest<'a> {
 
 impl<'a> APIFunction for ForwardedWebHookRequest<'a> {
     fn path(&self) -> Cow<str> {
-        Cow::Borrowed(".")
+        Cow::Borrowed("internal/submission")
     }
 }
 
@@ -102,7 +103,8 @@ fn webhook(course: Uuid, assignment: Uuid, message: Json<JsonValue>, data: Optio
            -> GMResult<()> {
     trace!("Forwarding webhook");
     let upstream = message["project"]["git_ssh_url"].as_str().expect("Schema changed");
-    let request = ForwardedWebHookRequest { course_uid: &course.original, assignment_uid: &assignment.original, upstream, additional_data: data };
+    let additional_data = data.map(|d| ::percent_encoding::percent_decode(d.as_bytes()).decode_utf8().unwrap().into_owned());
+    let request = ForwardedWebHookRequest { assignment_uid: &assignment.original, upstream, additional_data };
     backend.call(&request)?.error_for_status()?;
     info!("Forwarded webhook for {}", upstream);
     Ok(())

@@ -17,7 +17,6 @@
 
 use std::borrow::Cow;
 use std::net::IpAddr;
-use std::convert::From;
 
 use ::{Error, GMResult, SafeNetwork};
 
@@ -85,9 +84,9 @@ pub trait APIAccessor {
                 }
             }
         }
-        let ret = res.error_for_status().map_err(Error::from);
+        let res = res.error_for_status()?;
         info!("Requested finished properly, sudo {:?}: {} {}", &sudo, &method, path);
-        ret
+        Ok(res)
     }
 
     fn client(&self) -> &Client;
@@ -208,11 +207,11 @@ macro_rules! gitlab_event {
                             if let Some(ref domains) = s.0 {
                                 if let Some(ip) = request.client_ip() {
                                     if !domains.iter().any(|d| is_ip_same(d, &ip)) {
-                                        info!("Blocked access from un-whitelisted server");
+                                        info!(target:stringify!(oj_gitlab_middleware::hooks::$clz),"Blocked access from un-whitelisted server");
                                         return Outcome::Failure((Status::Forbidden, "IP not whitelisted"))
                                     }
                                 } else {
-                                    info!("Blocked access from unknown server");
+                                    info!(target:stringify!(oj_gitlab_middleware::hooks::$clz),"Blocked access from unknown server");
                                     return Outcome::Failure((Status::Forbidden, "IP not whitelisted"))
                                 }
                             }
@@ -220,7 +219,7 @@ macro_rules! gitlab_event {
                         if let Outcome::Success(s) = request.guard::<State<TokenSalt>>() {
                             let token = calc_token(&request.uri().to_string(), &*s);
                             if !request.headers().get("x-gitlab-token").any(|t| t==token) {
-                                info!("Blocked access with bad token");
+                                info!(target:stringify!(oj_gitlab_middleware::hooks::$clz),"Blocked access with bad token");
                                 return Outcome::Failure((Status::Forbidden, "Require valid token"))
                             }
                         }
@@ -228,14 +227,14 @@ macro_rules! gitlab_event {
                 }
                 let name: Vec<_> = request.headers().get("x-gitlab-event").collect();
                 if name.len() != 1 {
-                    info!("Blocked access with wrong number of event indicator: {}", name.len());
+                    info!(target:stringify!(oj_gitlab_middleware::hooks::$clz),"Blocked access with wrong number of event indicator: {}", name.len());
                     return Outcome::Failure((Status::BadRequest, stringify!(No gitlab $name)))
                 }
                 if name[0] != $name {
-                    info!("Blocked access with bad event indicator: {}, expecting {}", name[0], $name);
+                    info!(target:stringify!(oj_gitlab_middleware::hooks::$clz),"Blocked access with bad event indicator: {}, expecting {}", name[0], $name);
                     return Outcome::Failure((Status::BadRequest, stringify!(Not gitlab $name)))
                 }
-                trace!("Accepted {}", $name); // rust stupid here, could be a constant, maybe i'm stupid
+                trace!(target:stringify!(oj_gitlab_middleware::hooks::$clz),"Accepted {}", $name); // rust stupid here, could be a constant, maybe i'm stupid
                 return Outcome::Success($clz());
             }
         }
