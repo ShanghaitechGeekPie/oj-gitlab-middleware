@@ -468,13 +468,14 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     let repo_url = response["ssh_url_to_repo"].as_str().expect("Gitlab schema changed");
     db.remember_repo_id(&course_uid.parsed, &assignment_uid.parsed, message.repo_name, repo_id)?;
     // setup webhook
-    let webhook = if let Some(d) = &message.additional_data {
+    let mut webhook = if let Some(d) = &message.additional_data {
         let data = ::percent_encoding::percent_encode(d.as_bytes(), percent_encoding::QUERY_ENCODE_SET);
-        format!("{}/hooks/{}/{}?data={}", middleware_base.0, &course_uid.original, &assignment_uid.original, data)
+        format!("/hooks/{}/{}?data={}", &course_uid.original, &assignment_uid.original, data)
     } else {
-        format!("{}/hooks/{}/{}", middleware_base.0, &course_uid.original, &assignment_uid.original)
+        format!("/hooks/{}/{}", &course_uid.original, &assignment_uid.original)
     };
     let token = calc_token(&webhook, &*token_salt);
+    webhook.insert_str(0, &middleware_base.0);
     gitlab_api.call(&CreateWebhookGitlab::new(repo_id, &webhook, &token))?;
     // set all branches as protected branch to prevent force push
     gitlab_api.call_no_body(Method::POST, &format!("projects/{}/protected_branches?name=*", repo_id))?;
@@ -660,7 +661,8 @@ fn main() {
             Ok(r.manage(TokenSalt(token)))
         }))
         .attach(AdHoc::on_attach("MiddlewareBaseRetriever", |r| {
-            let token = r.config().get_string("middleware_base").unwrap_or(String::new());
+            let mut token: String = r.config().get_string("middleware_base").unwrap_or(String::new());
+            if let Some('/') = token.chars().last() { token.pop(); }
             Ok(if !token.is_empty() {
                 r.manage(MiddlewareBase(token))
             } else {

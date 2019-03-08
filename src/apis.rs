@@ -201,24 +201,29 @@ macro_rules! gitlab_event {
                     if let Some(ref domains) = s.0 {
                         if let Some(ip) = request.client_ip() {
                             if !domains.iter().any(|d| is_ip_same(d, &ip)) {
+                                info!("Blocked access from un-whitelisted server");
                                 return Outcome::Failure((Status::Forbidden, "IP not whitelisted"))
                             }
                         } else {
+                            info!("Blocked access from unknown server");
                             return Outcome::Failure((Status::Forbidden, "IP not whitelisted"))
                         }
                     }
                 }
                 if let Outcome::Success(s) = request.guard::<State<TokenSalt>>() {
-                    let token = calc_token(request.uri().path(), &*s);
+                    let token = calc_token(&request.uri().to_string(), &*s);
                     if !request.headers().get("x-gitlab-token").any(|t| t==token) {
+                        info!("Blocked access with bad token");
                         return Outcome::Failure((Status::Forbidden, "Require valid token"))
                     }
                 }
                 let name: Vec<_> = request.headers().get("x-gitlab-event").collect();
                 if name.len() != 1 {
+                    info!("Blocked access with wrong number of event indicator: {}", name.len());
                     return Outcome::Failure((Status::BadRequest, stringify!(No gitlab $name)))
                 }
                 if name[0] != $name {
+                    info!("Blocked access with bad event indicator: {}, expecting {}", name[0], $name);
                     return Outcome::Failure((Status::BadRequest, stringify!(Not gitlab $name)))
                 }
                 return Outcome::Success($clz());
