@@ -64,9 +64,6 @@ mod err;
 
 use apis::*;
 use err::*;
-use log4rs::config::Config as LogConfig;
-use log::Log;
-use log4rs::config::Root;
 
 struct Uuid<'a> {
     parsed: UuidRaw,
@@ -106,6 +103,7 @@ fn webhook(course: Uuid, assignment: Uuid, message: Json<JsonValue>, data: Optio
     let upstream = message["project"]["git_ssh_url"].as_str().expect("Schema changed");
     let request = ForwardedWebHookRequest { course_uid: &course.original, assignment_uid: &assignment.original, upstream, additional_data: data };
     backend.call(&request)?.error_for_status()?;
+    info!("Forwarded webhook for {}", upstream);
     Ok(())
 }
 
@@ -152,6 +150,7 @@ impl<'a> APIFunction for CreateUserGitLab<'a> {
 fn create_user<'a>(user: Json<CreateUser>,
                    mut db: DBAccess, gitlab_api: State<'a, GitLabAPI>)
                    -> GMResult<Response<'a>> {
+    trace!("Creating user {}", &user.email);
     let mut builder = Response::build();
     if user.password.len() < 8 {
         return Ok(builder.status(Status::BadRequest)
@@ -168,6 +167,7 @@ fn create_user<'a>(user: Json<CreateUser>,
             .sized_body(Cursor::new(r#"{"cause":"Invalid email"}"#))
             .finalize());
     }
+    info!("Created user {}", &user.email);
     Ok(builder.status(Status::Created).finalize())
 }
 
@@ -233,10 +233,11 @@ impl<'a> FromFormValue<'a> for StrInUri<'a> {
 fn update_key(user_email: StrInUri, message: Json<UpdateKey>,
               mut db: DBAccess, gitlab_api: State<GitLabAPI>)
               -> GMResult<Status> {
+    trace!("Updating private key for user {}", &*user_email);
     let id = db.translate_uid(&user_email)?;
     gitlab_api.remove_keys(id)?;
     gitlab_api.call(&AddKeyGitlab::new(id, &message.key))?;
-
+    info!("Updated private key for user {}", &*user_email);
     Ok(Status::Ok)
 }
 
@@ -276,8 +277,11 @@ impl<'a> APIFunction for CreateGroupGitlab<'a> {
 fn create_course(message: Json<CreateGroup>,
                  mut db: DBAccess, gitlab_api: State<GitLabAPI>)
                  -> GMResult<Status> {
+    trace!("Creating course {}({})", message.name, &message.uuid);
     let r: Value = gitlab_api.call(&CreateGroupGitlab::from(&*message))?.json()?;
-    db.remember_uuid(&message.uuid, r["id"].as_u64().expect("Gitlab schema changed")).map(|_| Status::Created)
+    let ret = db.remember_uuid(&message.uuid, r["id"].as_u64().expect("Gitlab schema changed")).map(|_| Status::Created);
+    info!("Created course {}({})", message.name, &message.uuid);
+    ret
 }
 
 #[delete("/courses/<course_uid>")]
@@ -294,6 +298,8 @@ fn delete_course(course_uid: Uuid,
     gitlab_api.call_no_body(Method::DELETE, &format!("groups/{}", course_id))?;
 
     db.forget_uuid_by_id(course_id)?;
+
+    info!("Deleted course {}", &course_uid.original);
 
     Ok(())
 }
@@ -321,18 +327,22 @@ fn create_assignment(parent_uid: Uuid, message: Json<CreateAssignment>,
                      -> GMResult<Status> {
     let parent_id = db.translate_uuid(&parent_uid.parsed)?;
     let response: Value = gitlab_api.call(&CreateGroupGitlab::assignment(&*message, parent_id))?.json()?;
-    db.remember_uuid(&message.uuid, response["id"].as_u64().expect("Gitlab schema changed"))
-        .map(|_| Status::Created)
+    let ret = db.remember_uuid(&message.uuid, response["id"].as_u64().expect("Gitlab schema changed"))
+        .map(|_| Status::Created);
+    info!("Created assignment {}({}) for {}", message.name, &message.uuid, &parent_uid.original);
+    ret
 }
 
-#[delete("/courses/<_course_uid>/assignments/<assignment_uid>")]
-fn delete_assignment(_course_uid: Uuid, assignment_uid: Uuid,
+#[delete("/courses/<course_uid>/assignments/<assignment_uid>")]
+fn delete_assignment(course_uid: Uuid, assignment_uid: Uuid,
                      mut db: DBAccess, gitlab_api: State<GitLabAPI>) -> GMResult<()> {
     let assignment_id = db.translate_uuid(&assignment_uid.parsed)?;
 
     gitlab_api.call_no_body(Method::DELETE, &format!("groups/{}", assignment_id))?;
 
     db.forget_uuid_by_id(assignment_id)?;
+
+    info!("Deleted assignment {} from {}", &assignment_uid.original, &course_uid.original);
 
     Ok(())
 }
@@ -369,6 +379,7 @@ fn add_instructor_to_course<'r>(course_uuid: Uuid, message: Json<AddInstructorTo
     let course_id = db.translate_uuid(&course_uuid.parsed)?;
     let user_id = db.translate_uid(message.instructor_name)?;
     gitlab_api.call(&AddUserToGroupGitlab::new(user_id, course_id, 50))?;
+    info!("Instructor {} added to course {}", &message.instructor_name, &course_uuid.original);
     Ok(())
 }
 
@@ -460,7 +471,12 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
         let mut ret: Vec<u64> = Vec::with_capacity(message.owners.len());
 
         for owner in &message.owners {
-            ret.push(db.translate_uid(owner)?);
+            let result = db.translate_uid(owner);
+            if let Err(Error::NotFound) = result {
+                warn!("User {} not found", owner);
+                return Err(Error::NotFound);
+            }
+            ret.push(result?);
         }
 
         ret
@@ -471,6 +487,7 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     let repo_id = response["id"].as_u64().expect("Gitlab schema changed");
     let repo_url = response["ssh_url_to_repo"].as_str().expect("Gitlab schema changed");
     db.remember_repo_id(&course_uid.parsed, &assignment_uid.parsed, message.repo_name, repo_id)?;
+    trace!("Repo {} created", repo_url);
     // setup webhook
     let mut webhook = if let Some(d) = &message.additional_data {
         let data = ::percent_encoding::percent_encode(d.as_bytes(), percent_encoding::USERINFO_ENCODE_SET);
@@ -481,12 +498,15 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     let token = calc_token(&webhook, &*token_salt);
     webhook.insert_str(0, &middleware_base.0);
     gitlab_api.call(&CreateWebhookGitlab::new(repo_id, &webhook, &token))?;
+    trace!("Webhook for {} created as {}", repo_url, &webhook);
     // set all branches as protected branch to prevent force push
     gitlab_api.call_no_body(Method::POST, &format!("projects/{}/protected_branches?name=*", repo_id))?;
     // setup student permission
     for owner in owners {
         gitlab_api.call(&AddUserToProjectGitlab::new(repo_id, owner, message.ddl))?;
+        trace!("Limited permission for user {} on {} added", owner, repo_url);
     }
+    info!("Created repo {}", repo_url);
     Ok(format!(r#"{{"ssh_url_to_repo":"{}"}}"#, repo_url))
 }
 
@@ -499,6 +519,7 @@ fn delete_repo(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri,
 
     db.forget_repo_id(repo_id)?;
 
+    info!("Deleted repo {}({}) for assignment {} in course {} ", &*repo_name, repo_id, &assignment_uid.original, &course_uid.original);
     Ok(())
 }
 
@@ -575,8 +596,10 @@ fn commits<'r>(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri, page
 fn healthcheck(mut db: DBAccess, gitlab_api: State<GitLabAPI>/*, backend: State<BackendAPI>*/) -> Response {
 //fn healthcheck<'r>(mut db: DBAccess, gitlab_api: State<'r, GitLabAPI>, backend: State<BackendAPI>) -> Response<'r> {
     if !db.0.ping() {
+        error!("DB not responding to ping");
         Response::build().status(Status::InternalServerError).sized_body(Cursor::new("db offline")).finalize()
     } else if gitlab_api.call_no_body(Method::GET, "../../-/health").is_err() {
+        error!("GitLab seems down");
         Response::build().status(Status::InternalServerError).sized_body(Cursor::new("gitlab offline")).finalize()
     } else {
         Response::build().sized_body(Cursor::new("OK")).finalize()

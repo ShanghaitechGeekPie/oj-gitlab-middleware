@@ -62,13 +62,14 @@ pub trait APIAccessor {
     }
 
     fn execute<T: Serialize + ?Sized>(&self, method: Method, path: &str, body: &T, sudo: Option<&str>) -> GMResult<Response> {
+        trace!("Starting request, sudo {:?}: {} {}", &sudo, &method, path);
         let mut res = if let Some(user) = sudo {
-            self.client().request(method, self.base().join(path).expect("Invalid URL"))
+            self.client().request(method.clone(), self.base().join(path).expect("Invalid URL"))
                 .json(body)
                 .header("sudo", user)
                 .send()
         } else {
-            self.client().request(method, self.base().join(path).expect("Invalid URL"))
+            self.client().request(method.clone(), self.base().join(path).expect("Invalid URL"))
                 .json(body)
                 .send()
         }?;
@@ -77,12 +78,16 @@ pub trait APIAccessor {
             if let Ok(body) = res.json::<Value>() {
                 if let Some(json) = body.get("message") {
                     if json.is_string() {
-                        return Err(Error::upstream(res.status().as_u16(), json.as_str().unwrap().to_string()))
+                        let msg = json.as_str();
+                        error!("{} {}: {:?}", &method, path, msg);
+                        return Err(Error::upstream(res.status().as_u16(), msg.unwrap().to_string()))
                     }
                 }
             }
         }
-        res.error_for_status().map_err(Error::from)
+        let ret = res.error_for_status().map_err(Error::from);
+        info!("Requested finished properly, sudo {:?}: {} {}", &sudo, &method, path);
+        ret
     }
 
     fn client(&self) -> &Client;
@@ -226,6 +231,7 @@ macro_rules! gitlab_event {
                     info!("Blocked access with bad event indicator: {}, expecting {}", name[0], $name);
                     return Outcome::Failure((Status::BadRequest, stringify!(Not gitlab $name)))
                 }
+                trace!("Accepted {}", $name); // rust stupid here, could be a constant, maybe i'm stupid
                 return Outcome::Success($clz());
             }
         }

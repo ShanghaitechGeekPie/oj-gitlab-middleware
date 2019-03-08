@@ -5,7 +5,6 @@ authors = ["temp"]
 
 [dependencies]
 rocket = "0.4"
-#mysql = "15.0"
 reqwest = "0.9"
 percent-encoding = "~1.0"
 url = "1.7"
