@@ -46,6 +46,8 @@ begin
     add constraint repo_ids_course_uid_uuids_uuid_fk
       foreign key (course_uid) references uuids (uuid)
         on update cascade on delete cascade;
+
+  insert into version(id) VALUES (1);
 end //
 
 delimiter ;
