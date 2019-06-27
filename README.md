@@ -150,6 +150,23 @@ Response
 
     HTTP 500 Bad Request
 
+###  `/users/<user_email>`
+Request 
+
+    GET /users/wangdch%40shanghaitech.edu.cn
+    
+Response
+
+    HTTP 204 No Content
+    
+Request 
+
+    GET /users/wangdch%40sustc.edu.cn
+    
+Response
+
+    HTTP 404 Not Found
+
 ###  `/users/<user_email>/key`
 Request 
 

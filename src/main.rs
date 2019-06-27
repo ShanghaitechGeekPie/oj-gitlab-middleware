@@ -174,6 +174,16 @@ fn create_user<'a>(user: Json<CreateUser>,
     Ok(builder.status(Status::Created).finalize())
 }
 
+#[get("/users/<email>")]
+fn get_user(email: String,
+            mut db: DBAccess) -> Status {
+    if db.translate_uid(&email).is_ok() {
+        Status::NoContent
+    } else {
+        Status::NotFound
+    }
+}
+
 #[derive(Deserialize)]
 struct UpdateKey {
     key: String,
