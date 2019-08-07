@@ -199,7 +199,7 @@ All its associated assignments, repos, other metadata will be removed.
 
 Request 
 
-    DELETE /courses/00000000-0000-0000-0000-000000000000/assignments/00000000-0000-0000-0000-000000000000
+    DELETE /courses/00000000-0000-0000-0000-000000000000
 
 Response
 
