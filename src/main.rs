@@ -64,6 +64,7 @@ mod err;
 
 use apis::*;
 use err::*;
+use err::Error::NotFound;
 
 struct Uuid<'a> {
     parsed: UuidRaw,
@@ -317,6 +318,22 @@ fn delete_course(course_uid: Uuid,
     Ok(())
 }
 
+#[get("/courses/<course_uid>")]
+fn get_course(course_uid: Uuid,
+              mut db: DBAccess, gitlab_api: State<GitLabAPI>) -> GMResult<()> {
+    let course_id = db.translate_uuid(&course_uid.parsed)?;
+
+    match gitlab_api.call_no_body(Method::GET, &format!("groups/{}", course_id)) {
+        Err(NotFound) => {
+            db.forget_uuid_by_id(course_id)?;
+            warn!("Course {} recognized but not found in gitlab. Forgetting...", &course_uid.original);
+            Err(NotFound)
+        }
+        Err(e) => Err(e),
+        Ok(_) => Ok(())
+    }
+}
+
 #[derive(Deserialize)]
 struct CreateAssignment<'a> {
     name: &'a str,
@@ -358,6 +375,35 @@ fn delete_assignment(course_uid: Uuid, assignment_uid: Uuid,
     info!("Deleted assignment {} from {}", &assignment_uid.original, &course_uid.original);
 
     Ok(())
+}
+
+#[get("/courses/<course_uid>/assignments/<assignment_uid>")]
+fn get_assignment(course_uid: Uuid, assignment_uid: Uuid,
+                  mut db: DBAccess, gitlab_api: State<GitLabAPI>) -> GMResult<()> {
+    let course_id = db.translate_uuid(&course_uid.parsed)?;
+    let assignment_id = db.translate_uuid(&assignment_uid.parsed)?;
+
+    match gitlab_api.call_no_body(Method::GET, &format!("groups/{}", course_id)) {
+        Err(NotFound) => {
+            db.forget_uuid_by_id(course_id)?;
+            warn!("Course {} recognized but not found in gitlab. Forgetting...", &course_uid.original);
+            db.forget_uuid_by_id(assignment_id)?;
+            warn!("Also forgetting associated assignment {}", &assignment_uid.original);
+            Err(NotFound)
+        }
+        Err(e) => Err(e),
+        Ok(_) => Ok(())
+    }?;
+
+    match gitlab_api.call_no_body(Method::GET, &format!("groups/{}", assignment_id)) {
+        Err(NotFound) => {
+            db.forget_uuid_by_id(course_id)?;
+            warn!("Assignment {} recognized but not found in gitlab. Forgetting...", &assignment_uid.original);
+            Err(NotFound)
+        }
+        Err(e) => Err(e),
+        Ok(_) => Ok(())
+    }
 }
 
 #[derive(Deserialize)]
@@ -534,6 +580,56 @@ fn delete_repo(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri,
 
     info!("Deleted repo {}({}) for assignment {} in course {} ", &*repo_name, repo_id, &assignment_uid.original, &course_uid.original);
     Ok(())
+}
+
+#[get("/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>")]
+fn get_repo(course_uid: Uuid, assignment_uid: Uuid, repo_name: StrInUri,
+            mut db: DBAccess, gitlab_api: State<GitLabAPI>) -> GMResult<()> {
+    let course_id = db.translate_uuid(&course_uid.parsed)?;
+    let assignment_id = db.translate_uuid(&assignment_uid.parsed)?;
+    let repo_id = db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &repo_name)?;
+
+    match gitlab_api.call_no_body(Method::GET, &format!("groups/{}", course_id)) {
+        Err(NotFound) => {
+            db.forget_uuid_by_id(course_id)?;
+            warn!("Course {} recognized but not found in gitlab. Forgetting...", &course_uid.original);
+            db.forget_uuid_by_id(assignment_id)?;
+            warn!("Also forgetting associated assignment {}", &assignment_uid.original);
+            Err(NotFound)
+        }
+        Err(e) => Err(e),
+        Ok(_) => Ok(())
+    }?;
+
+    match gitlab_api.call_no_body(Method::GET, &format!("groups/{}", assignment_id)) {
+        Err(NotFound) => {
+            db.forget_uuid_by_id(course_id)?;
+            warn!("Assignment {} recognized but not found in gitlab. Forgetting...", &course_uid.original);
+            Err(NotFound)
+        }
+        Err(e) => Err(e),
+        Ok(_) => Ok(())
+    }?;
+
+    match gitlab_api.call_no_body(Method::GET, &format!("groups/{}", assignment_id)) {
+        Err(NotFound) => {
+            db.forget_uuid_by_id(course_id)?;
+            warn!("Assignment {} recognized but not found in gitlab. Forgetting...", &assignment_uid.original);
+            Err(NotFound)
+        }
+        Err(e) => Err(e),
+        Ok(_) => Ok(())
+    }?;
+
+    match gitlab_api.call_no_body(Method::GET, &format!("projects/{}", repo_id)) {
+        Err(NotFound) => {
+            db.forget_repo_id(repo_id)?;
+            warn!("Repo {} recognized but not found in gitlab. Forgetting...", repo_id);
+            Err(NotFound)
+        }
+        Err(e) => Err(e),
+        Ok(_) => Ok(())
+    }
 }
 
 struct DownloadFormat<'a>(Cow<'a, str>);
@@ -733,18 +829,8 @@ fn main() {
         .mount("/", routes![
             webhook,create_user,update_key,create_course,create_assignment,
             add_instructor_to_course,create_repo,download_repo,healthcheck,commits,
-            delete_course, delete_assignment, delete_repo
+            delete_course, delete_assignment, delete_repo,
+            get_course, get_assignment, get_repo
         ])
         .launch();
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test() {
-        println!("{:?}", "".to_socket_addrs().map(|addrs| addrs.map(|sa| sa.ip()).collect()).unwrap_or(Vec::new()));
-        println!("{}", calc_token("/hooks/9e013cc8-3cb1-11e9-b8c1-029eb8fed818/eb01fe80-3cb7-11e9-ab54-029eb8fed818?data=%5B%5B%22d7a2b7a8-3bea-11e9-9b7d-029eb8a3a160%22%5D%5D", "CAFEDEAD"));
-    }
 }

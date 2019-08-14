@@ -193,7 +193,11 @@ Response
     HTTP 202 Created
 
 ###  `/courses/<course_uid>`
-This will delete the given course no matter what.
+This endpoint support both DELETE and GET method.
+
+Using GET will return whether this resourced is created in the form of response code, with 404 for not found and 20x for created.
+
+DELETE will will delete the given course no matter what.
 
 All its associated assignments, repos, other metadata will be removed.
 
@@ -231,7 +235,11 @@ Response
     HTTP 202 Created 
 
 ###  `/courses/<course_uid>/assignments/<assignment_uid>`
-This will delete the given assignment no matter what. 
+This endpoint support both DELETE and GET method.
+
+Using GET will return whether this resourced is created in the form of response code, with 404 for not found and 20x for created.
+
+DELETE will delete the given assignment no matter what. 
 
 All its associated repo will be removed.
 
@@ -260,7 +268,11 @@ Response
     HTTP 202 Created 
 
 ###  `/courses/<course_uid>/assignments/<assignment_uid>/repos/<repo_name>`
-This will delete the given repo no matter what. 
+This endpoint support both DELETE and GET method.
+
+Using GET will return whether this resourced is created in the form of response code, with 404 for not found and 20x for created.
+
+DELETE will delete the given repo no matter what. 
 
 Request 
 
