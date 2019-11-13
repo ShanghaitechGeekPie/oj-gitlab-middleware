@@ -44,12 +44,12 @@ begin
 
   alter table repo_ids
     add constraint repo_ids_assignment_uid_uuids_uuid_fk
-      foreign key (assignment_uid) references uuids (uuid)
+      foreign key (assignment_uid) references uuids (gitlab_id)
         on update cascade on delete cascade;
 
   alter table repo_ids
     add constraint repo_ids_course_uid_uuids_uuid_fk
-      foreign key (course_uid) references uuids (uuid)
+      foreign key (course_uid) references uuids (gitlab_id)
         on update cascade on delete cascade;
 
   insert into version(id) VALUES (1);
