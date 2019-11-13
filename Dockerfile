@@ -1,11 +1,7 @@
-FROM rustlang/rust:nightly-slim
-
-MAINTAINER llk89 @ ShanghaiTech GeekPie Association
-
-EXPOSE 8000
+FROM rustlang/rust:nightly-slim as builder
 
 RUN apt-get update && \
-    apt-get install -y pkg-config libssl-dev mysql-client
+    apt-get install -y pkg-config libssl-dev default-mysql-client
 
 # Shut these ****ing ANSI escape off
 # For CI's sake
@@ -24,6 +20,18 @@ RUN cd /app && \
 COPY . /app/
 WORKDIR /app
 RUN cargo +nightly build --color never --release
-RUN chmod +x /app/entry-point.sh
+
+# While alpine is smaller, all of our other images are based off ubuntu 18.04
+# Since it is quite likely all these lives on the same machine,
+# It won't hurt to use it
+FROM ubuntu:18.04
+
+MAINTAINER llk89 @ ShanghaiTech GeekPie Association
+
+EXPOSE 8000
+
+COPY . /app
+COPY --from=builder /app/target/oj-gitlab-middleware /app/oj-gitlab-middleware
 
 CMD /app/entry-point.sh
+
