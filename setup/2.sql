@@ -22,6 +22,11 @@ delimiter //
 create procedure setup_2()
   modifies sql data
 begin
+  create table if not exists version
+  (
+    id int(7) unsigned not null
+      primary key
+  );
   set @self = (select count(*) from version where id = 1);
   if (@self = 0) then
     call setup_2_();
