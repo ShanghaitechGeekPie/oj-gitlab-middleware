@@ -1,7 +1,7 @@
 FROM rustlang/rust:nightly-slim as builder
 
 RUN apt-get update && \
-    apt-get install -y pkg-config libssl-dev default-mysql-client
+    apt-get install -y pkg-config libssl-dev
 
 # Shut these ****ing ANSI escape off
 # For CI's sake
@@ -29,6 +29,10 @@ FROM ubuntu:18.04
 MAINTAINER llk89 @ ShanghaiTech GeekPie Association
 
 EXPOSE 8000
+
+RUN apt-get update && \
+    apt-get install -y pkg-config libssl1.1 default-mysql-client && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
