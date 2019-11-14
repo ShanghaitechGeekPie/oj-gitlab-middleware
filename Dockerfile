@@ -31,7 +31,7 @@ MAINTAINER llk89 @ ShanghaiTech GeekPie Association
 EXPOSE 8000
 
 COPY . /app
-COPY --from=builder /app/target/oj-gitlab-middleware /app/oj-gitlab-middleware
+COPY --from=builder /app/target/release/oj-gitlab-middleware /app/oj-gitlab-middleware
 
 CMD /app/entry-point.sh
 
