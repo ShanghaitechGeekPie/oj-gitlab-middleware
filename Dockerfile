@@ -31,7 +31,7 @@ MAINTAINER llk89 @ ShanghaiTech GeekPie Association
 EXPOSE 8000
 
 RUN apt-get update && \
-    apt-get install -y pkg-config libssl1.1 default-mysql-client && \
+    apt-get install -y libssl1.1 default-mysql-client && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
