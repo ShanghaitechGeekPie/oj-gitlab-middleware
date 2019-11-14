@@ -827,7 +827,7 @@ fn main() {
             })
         }))
         .mount("/", routes![
-            webhook,create_user,update_key,create_course,create_assignment,
+            webhook,create_user, get_user, update_key,create_course,create_assignment,
             add_instructor_to_course,create_repo,download_repo,healthcheck,commits,
             delete_course, delete_assignment, delete_repo,
             get_course, get_assignment, get_repo
