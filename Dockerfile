@@ -30,6 +30,8 @@ MAINTAINER llk89 @ ShanghaiTech GeekPie Association
 
 EXPOSE 8000
 
+WORKDIR /app
+
 COPY . /app
 COPY --from=builder /app/target/release/oj-gitlab-middleware /app/oj-gitlab-middleware
 
