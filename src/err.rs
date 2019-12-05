@@ -24,6 +24,7 @@ use rocket::{Request, Response};
 use rocket::http::Status;
 use rocket::response::Responder;
 use std::io::Cursor;
+use time::ParseError;
 
 #[derive(Debug)]
 pub enum Error {
@@ -32,6 +33,7 @@ pub enum Error {
     JSONError(JSONError),
     AlreadyExists,
     NotFound,
+    TimeError(ParseError),
     UpstreamError(u16, String),
     SomeError(&'static str),
 }
@@ -62,6 +64,12 @@ impl From<JSONError> for Error {
 impl From<HTTPError> for Error {
     fn from(exception: HTTPError) -> Self {
         Error::HTTPError(exception)
+    }
+}
+
+impl From<ParseError> for Error {
+    fn from(exception: ParseError) -> Self {
+        Error::TimeError(exception)
     }
 }
 

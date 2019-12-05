@@ -34,6 +34,7 @@ extern crate percent_encoding;
 extern crate hex;
 extern crate sha2;
 extern crate uuid;
+extern crate time;
 
 use std::borrow::{Borrow, Cow};
 use std::net::ToSocketAddrs;
@@ -524,7 +525,8 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
                -> GMResult<String> {
     if db.translate_repo_id(&course_uid.parsed, &assignment_uid.parsed, &message.repo_name).is_ok() {
         return Err(Error::AlreadyExists);
-    }
+    }// expires_at add one day
+    let ddl = time::strftime("%Y-%m-%d", &(time::strptime(message.ddl, "%Y-%m-%d")? + time::Duration::days(1)))?;
     let assignment_id = db.translate_uuid(&assignment_uid.parsed)?;
     let owners: Vec<u64> = {
         let mut ret: Vec<u64> = Vec::with_capacity(message.owners.len());
@@ -562,7 +564,7 @@ fn create_repo(course_uid: Uuid, assignment_uid: Uuid, message: Json<CreateRepo>
     gitlab_api.call_no_body(Method::POST, &format!("projects/{}/protected_branches?name=*", repo_id))?;
     // setup student permission
     for owner in owners {
-        gitlab_api.call(&AddUserToProjectGitlab::new(repo_id, owner, message.ddl))?;
+        gitlab_api.call(&AddUserToProjectGitlab::new(repo_id, owner, &ddl))?;
         trace!("Limited permission for user {} on {} added", owner, repo_url);
     }
     info!("Created repo {}", repo_url);
