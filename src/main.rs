@@ -15,7 +15,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#![feature(proc_macro_hygiene, decl_macro, result_map_or_else, ip)]
+#![feature(proc_macro_hygiene, decl_macro, ip)]
 
 #[macro_use]
 extern crate log;
